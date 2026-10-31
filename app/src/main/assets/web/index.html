@@ -42,6 +42,7 @@
         <button data-tab="screen">Screen</button>
         <button data-tab="backup">Backup</button>
         <button data-tab="updates">Updates</button>
+        <button data-tab="log">Log</button>
       </nav>
 
       <div id="tab-tile" class="tab"></div>
@@ -292,6 +293,17 @@
         <p class="muted">Releases come from github.com/thinke/biwurth. Each download is checked against its
           SHA-256 and the installed app's signing key. A device-owner panel installs without asking;
           otherwise Android asks once on the tablet.</p>
+      </div>
+      <div id="tab-log" class="tab" hidden>
+        <h2>Log</h2>
+        <p class="muted">biwurth's own log, kept on the tablet: connections, camera and source errors,
+          updates and crashes. The newest 500 lines, newest last.</p>
+        <div class="row">
+          <button type="button" id="logRefresh">Refresh</button>
+          <button type="button" id="logDownload">Download</button>
+          <button type="button" id="logClear" class="danger">Clear</button>
+        </div>
+        <pre id="logText" class="log"></pre>
       </div>
     </aside>
   </main>

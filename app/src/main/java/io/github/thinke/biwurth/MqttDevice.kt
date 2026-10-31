@@ -59,6 +59,14 @@ class MqttDevice(private val app: PanelApp) {
 
     fun start() {
         scope.launch { app.config.mqtt.collectLatest(::run) }
+        scope.launch {
+            // Starting from the current value: the initial "Not configured" is only the default.
+            var last = _status.value
+            _status.collect {
+                if (it != last && it != "Connecting…") EventLog.i("mqtt", it)
+                last = it
+            }
+        }
     }
 
     private suspend fun run(settings: MqttSettings) {

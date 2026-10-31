@@ -37,6 +37,7 @@ class PanelApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        EventLog.init(filesDir)
         prefs = Prefs(this)
         config = ConfigStore(this)
         backgrounds = BackgroundStore(this)

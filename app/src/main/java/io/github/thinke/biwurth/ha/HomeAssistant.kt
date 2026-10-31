@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth.ha
 
+import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.config.HaSettings
 import kotlinx.coroutines.CompletableDeferred
@@ -54,6 +55,17 @@ class HomeAssistant(private val config: ConfigStore) {
 
     private val _status = MutableStateFlow("Not configured")
     val status: StateFlow<String> = _status
+
+    init {
+        scope.launch {
+            // Starting from the current value: the initial "Not configured" is only the default.
+            var last = _status.value
+            _status.collect {
+                if (it != last && it != "Connecting…") EventLog.i("ha", it)
+                last = it
+            }
+        }
+    }
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected

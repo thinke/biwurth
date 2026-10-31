@@ -170,3 +170,6 @@ code { font-size: 12px; }
   border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; }
 /* Field tables need room: the Sources tab widens the side panel. */
 body.wide-aside main { grid-template-columns: minmax(0, 1fr) min(640px, 50vw); }
+.log { white-space: pre-wrap; word-break: break-word; font-size: 11px; line-height: 1.35; max-height: 70vh;
+  overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+body.wide-aside-log main { grid-template-columns: minmax(0, 1fr) min(760px, 55vw); }

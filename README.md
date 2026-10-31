@@ -44,6 +44,8 @@ fine to bookmark on your own devices.
 - **Cameras**: go2rtc address (Frigate's built-in one works), live stream limit, and whether
   cameras stay live while the backlight is off. A camera tile takes a go2rtc stream name or a
   full `rtsp://` / HLS URL; tap it for full screen.
+- **Log**: biwurth's own log on the tablet (connections, camera and source errors, updates,
+  crash stack traces), up to about 1 MB; view, download or clear it.
 - **Backup**: everything above in one file, the HA token and MQTT password only if ticked;
   restore applies a file (and compiles its layout).
 - **Home Assistant**: URL and long-lived access token (profile → Security). The token is stored

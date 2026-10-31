@@ -3,7 +3,6 @@ package io.github.thinke.biwurth
 import android.hardware.display.DisplayManager
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import android.view.Display
 import io.github.thinke.biwurth.config.CameraSettings
 import io.github.thinke.biwurth.config.HaSettings
@@ -57,7 +56,7 @@ class WebServer(private val app: PanelApp) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "web server stopped", e)
+                EventLog.e("web", "Web server stopped", e)
             }
         }
     }
@@ -77,7 +76,7 @@ class WebServer(private val app: PanelApp) {
         } catch (e: JSONException) {
             json(400, JSONObject().put("error", "Invalid JSON: ${e.message}"))
         } catch (e: Exception) {
-            Log.e(TAG, "${request.method} ${request.path} failed", e)
+            EventLog.e("web", "${request.method} ${request.path} failed", e)
             json(500, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
         }
         val head = "HTTP/1.1 ${response.status} ${REASONS[response.status] ?: ""}\r\n" +
@@ -217,6 +216,12 @@ class WebServer(private val app: PanelApp) {
             "PUT /api/background/image" -> {
                 val name = runCatching { app.backgrounds.save(request.bytes) }.getOrElse { throw BadRequest(it.message ?: "Bad picture") }
                 json(200, JSONObject().put("image", name))
+            }
+            "GET /api/logs" -> Response(200, "text/plain; charset=utf-8", EventLog.tail(500).toByteArray())
+            "GET /api/logs/all" -> Response(200, "text/plain; charset=utf-8", EventLog.all().toByteArray())
+            "DELETE /api/logs" -> {
+                EventLog.clear()
+                json(200, JSONObject().put("cleared", true))
             }
             "GET /api/sources" -> json(200, sourcesJson())
             "PUT /api/ha/enabled" -> {

@@ -2,7 +2,7 @@ package io.github.thinke.biwurth.config
 
 import android.content.Context
 import android.net.Uri
-import android.util.Log
+import io.github.thinke.biwurth.EventLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
@@ -145,7 +145,7 @@ class ConfigStore(context: Context) {
 
     private fun read(file: File): JSONObject? =
         runCatching { if (file.exists()) JSONObject(file.readText()) else null }
-            .onFailure { Log.w(TAG, "ignoring unreadable ${file.name}", it) }
+            .onFailure { EventLog.w("config", "Ignoring unreadable ${file.name}", it) }
             .getOrNull()
 
     // Write next to the file and rename over it, so a power cut never leaves half a config.

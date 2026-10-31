@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth.sources
 
+import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.config.SourceConfig
 import io.github.thinke.biwurth.ha.HomeAssistant
@@ -68,6 +69,7 @@ class Sources(private val config: ConfigStore, filesDir: File) {
                 throw e
             } catch (e: Exception) {
                 status(source, "Error: ${e.message ?: e.javaClass.simpleName}")
+                EventLog.e("source", "${source.name} (${source.type}): ${e.message ?: e.javaClass.simpleName}, retrying in ${backoff / 1000} s")
             }
             delay(backoff)
             backoff = (backoff * 2).coerceAtMost(5 * 60_000L)

@@ -1074,6 +1074,40 @@ $('#sourcesSave').addEventListener('click', async () => {
   }
 });
 
+// ---- Log ----------------------------------------------------------------------------------------
+
+async function logText(path) {
+  const response = await fetch(path, { headers: { Authorization: `Bearer ${key}` } });
+  if (response.status === 401) { showLogin(); throw new Error('Wrong key'); }
+  return response.text();
+}
+
+async function loadLog() {
+  try {
+    const text = await logText('/api/logs');
+    const pre = $('#logText');
+    pre.textContent = text || 'Empty.';
+    pre.scrollTop = pre.scrollHeight;
+  } catch (e) {
+    $('#logText').textContent = e.message;
+  }
+}
+
+$('#logRefresh').addEventListener('click', loadLog);
+$('#logDownload').addEventListener('click', async () => {
+  const url = URL.createObjectURL(new Blob([await logText('/api/logs/all')], { type: 'text/plain' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `biwurth-log-${new Date().toISOString().slice(0, 16).replace(':', '')}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+$('#logClear').addEventListener('click', async () => {
+  if (!confirm('Clear the log on the tablet?')) return;
+  await api('DELETE', '/api/logs');
+  loadLog();
+});
+
 // ---- Settings tabs ------------------------------------------------------------------------------
 
 function showTab(name) {
@@ -1083,6 +1117,8 @@ function showTab(name) {
   if (name === 'sources') loadSources();
   if (name === 'cameras') loadCameraTiles();
   document.body.classList.toggle('wide-aside', name === 'sources');
+  document.body.classList.toggle('wide-aside-log', name === 'log');
+  if (name === 'log') loadLog();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 

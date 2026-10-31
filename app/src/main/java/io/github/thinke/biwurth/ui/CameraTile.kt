@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -46,6 +45,7 @@ import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.ScreenState
 import io.github.thinke.biwurth.config.Tile
 import io.github.thinke.biwurth.panel
@@ -144,7 +144,6 @@ object CameraStatus {
     fun redact(url: String) = url.replace(Regex("://[^/@]+@"), "://***@")
 }
 
-private const val TAG = "biwurth.Camera"
 
 // ---- Live limit ------------------------------------------------------------------------------
 
@@ -177,7 +176,7 @@ private fun Video(url: String, fit: Boolean, status: (String) -> Unit = {}, onSh
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
-                if (failures > 0) Log.i(TAG, "${CameraStatus.redact(url)}: live again")
+                if (failures > 0) EventLog.i("camera", "${CameraStatus.redact(url)}: live again")
                 status("Live since ${LocalTime.now().withNano(0)}")
                 failures = 0
                 onShowing(true)
@@ -186,8 +185,7 @@ private fun Video(url: String, fit: Boolean, status: (String) -> Unit = {}, onSh
             override fun onPlayerError(error: PlaybackException) {
                 val reason = error.cause?.message ?: error.errorCodeName
                 val wait = retryDelay(failures + 1) / 1000
-                // An error, not a warning: some tablets (this one: log.tag=E) keep only errors.
-                Log.e(TAG, "${CameraStatus.redact(url)}: ${error.errorCodeName} ($reason), retrying in $wait s")
+                EventLog.e("camera", "${CameraStatus.redact(url)}: ${error.errorCodeName} ($reason), retrying in $wait s")
                 status("Error: $reason. Retrying in $wait s")
                 onShowing(false)
                 failures++

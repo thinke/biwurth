@@ -9,8 +9,8 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import android.util.Log
 import io.github.thinke.biwurth.BuildConfig
+import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.Kiosk
 import io.github.thinke.biwurth.MainActivity
 import io.github.thinke.biwurth.Prefs
@@ -100,13 +100,14 @@ class Updater(private val context: Context, private val prefs: Prefs) {
                 val pre = prefs.updatePrerelease
                 latest = releases.firstOrNull { pre || !it.prerelease }
                 val newest = Releases.newest(releases, installed, pre)
+                EventLog.i("update", newest?.let { "Checked: ${it.version} available" } ?: "Checked: up to date")
                 if (newest != null) {
                     UpdateState.Available(newest.copy(changes = Releases.changesSince(releases, installed, newest, pre)))
                 } else {
                     UpdateState.UpToDate(latest?.version?.toString())
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "update check failed", e)
+                EventLog.w("update", "Check failed: ${e.message}", e)
                 UpdateState.Failed("Couldn't check for updates: ${e.message ?: e.javaClass.simpleName}")
             }
         }
@@ -127,9 +128,10 @@ class Updater(private val context: Context, private val prefs: Prefs) {
                 val apk = download(release)
                 verify(apk)
                 _state.value = UpdateState.Installing(release)
+                EventLog.i("update", "Installing ${release.version}")
                 commit(apk)
             } catch (e: Exception) {
-                Log.w(TAG, "update failed", e)
+                EventLog.e("update", "Installing ${release.version} failed: ${e.message}", e)
                 _state.value = UpdateState.Failed(e.message ?: e.javaClass.simpleName, release)
             }
         }
