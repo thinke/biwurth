@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.provider.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -91,6 +92,31 @@ object Kiosk {
         dpm.clearDeviceOwnerApp(activity.packageName)
         deviceOwner.value = false
     }
+
+    /**
+     * Opens Android's Wi-Fi panel or Settings from the kiosk: the Settings app may run in lock task
+     * mode until biwurth is back on screen ([closeSystemSettings]), with Home enabled to get back.
+     */
+    fun openSystemSettings(activity: Activity, wifiOnly: Boolean) {
+        if (isDeviceOwner(activity)) {
+            val dpm = dpm(activity)
+            val admin = admin(activity)
+            dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, SETTINGS_PACKAGE))
+            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_HOME)
+        }
+        val intent = if (wifiOnly) Intent(Settings.Panel.ACTION_WIFI) else Intent(Settings.ACTION_SETTINGS)
+        runCatching { activity.startActivity(intent) }
+    }
+
+    /** Back in biwurth: only biwurth may run in kiosk mode again, without Home. */
+    fun closeSystemSettings(context: Context) {
+        if (!isDeviceOwner(context)) return
+        val dpm = dpm(context)
+        dpm.setLockTaskPackages(admin(context), arrayOf(context.packageName))
+        dpm.setLockTaskFeatures(admin(context), DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+    }
+
+    private const val SETTINGS_PACKAGE = "com.android.settings"
 
     // Without device owner, startLockTask() would ask the user to pin the app instead.
     fun enter(activity: Activity) {

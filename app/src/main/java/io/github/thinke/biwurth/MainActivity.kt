@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Kiosk.closeSystemSettings(this)
         if (panel.prefs.kiosk) Kiosk.enter(this)
         screen.userActivity()
         panel.updater.checkOnStart()

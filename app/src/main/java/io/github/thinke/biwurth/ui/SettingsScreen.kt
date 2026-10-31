@@ -119,6 +119,14 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
             }
             }
 
+            Section("Tablet") {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = true) }) { Text("Wi-Fi…") }
+                    OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = false) }) { Text("Android settings…") }
+                }
+                if (isOwner) Hint("Home or Back returns to biwurth, which locks the tablet again.")
+            }
+
             UpdatesSection(app.updater, prefs)
 
             Section("Website") {
