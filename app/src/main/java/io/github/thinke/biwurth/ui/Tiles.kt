@@ -21,6 +21,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -89,16 +90,18 @@ private fun TileContent(tile: Tile, ha: DataHub) {
 // Reading .value once as the starting state, so a tile doesn't flash empty before the first collect.
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-private fun DataHub.entity(id: String?): HomeAssistant.Entity? {
-    val flow = remember(this, id) { entities.map { all -> id?.let { all[it] } }.distinctUntilChanged() }
-    return flow.collectAsState(initial = id?.let { entities.value[it] }).value
+private fun DataHub.entity(id: String?): HomeAssistant.Entity? = key(id) {
+    val flow = remember(this) { entities.map { all -> id?.let { all[it] } }.distinctUntilChanged() }
+    flow.collectAsState(initial = id?.let { entities.value[it] }).value
 }
 
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> {
-    val flow = remember(this, ids) { entities.map { all -> ids.map { all[it] } }.distinctUntilChanged() }
-    return flow.collectAsState(initial = ids.map { entities.value[it] }).value
+// Keyed by the ids: collectAsState keeps its last value when its flow changes, so without the key a
+// tile given more entities would read the old, shorter list for a frame (and index past its end).
+private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> = key(ids) {
+    val flow = remember(this) { entities.map { all -> ids.map { all[it] } }.distinctUntilChanged() }
+    flow.collectAsState(initial = ids.map { entities.value[it] }).value
 }
 
 @Composable
@@ -314,7 +317,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
 
     val now = System.currentTimeMillis()
     val lines = ids.mapIndexed { i, id ->
-        val entity = current[i]
+        val entity = current.getOrNull(i)
         val live = entity?.state?.toFloatOrNull()
         val points = history[id].orEmpty()
         GraphLine(
