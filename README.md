@@ -1,0 +1,112 @@
+# biwurth
+
+A wall display for Home Assistant on an Android tablet: a kiosk launcher that shows your home on
+pages of tiles, configured from a website the tablet hosts itself, and that shows up in Home
+Assistant as an MQTT device. Built and tested on a Cepter Tab Nexa (CTABNEXT10C, Unisoc T7250,
+Android 16, 4 GB RAM); any Android 11+ tablet should do.
+
+- **Panel** (the tablet screen): pages of tiles you swipe between: clock, entity value,
+  toggle/button, history graph (several sensors per graph), weather, calendar, camera. Any
+  resolution and orientation, with colour themes and the Inter font (tabular figures).
+- **Website** on the tablet (`http://<tablet>:2323`): drag-and-drop layout editor, pages,
+  orientation, grid and theme, plus Home Assistant, MQTT and screen settings.
+- **MQTT device**: the tablet appears in Home Assistant with a screen switch, brightness,
+  sleep timeout and page select, and battery, charging, last touch, Wi-Fi and IP sensors.
+
+## Build and install
+
+```sh
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+adb shell cmd package compile -m speed -f io.github.thinke.biwurth
+adb shell cmd package set-home-activity io.github.thinke.biwurth/.MainActivity
+```
+
+Use the release build on the tablet: the debug build is several times slower (swiping pages
+stuttered up to 500 ms per frame in debug, 24 ms in release). Both are signed with the debug
+key, so either installs over the other and keeps the settings.
+
+## Website
+
+Open `http://<tablet IP>:2323` and enter the key from the tablet's Settings (tap the top-left
+corner of the panel five times). `http://<tablet IP>:2323/#key=<key>` logs in directly and is
+fine to bookmark on your own devices.
+
+- **Layout**: drag tiles to move, drag the corner to resize; pages (× on the tab deletes one),
+  orientation, grid size, theme and font; export a page to a file and import it on any panel.
+- **Compile & save**: the tablet checks the layout (overlaps, missing or non-numeric entities,
+  cameras without a source), preloads its data (history, forecasts, calendars, snapshots) and
+  only then switches to it. The report shows the time taken and any warnings.
+- **Cameras**: go2rtc address (Frigate's built-in one works), live stream limit, and whether
+  cameras stay live while the backlight is off. A camera tile takes a go2rtc stream name or a
+  full `rtsp://` / HLS URL; tap it for full screen.
+- **Backup**: everything above in one file, the HA token and MQTT password only if ticked;
+  restore applies a file (and compiles its layout).
+- **Home Assistant**: URL and long-lived access token (profile → Security). The token is stored
+  on the tablet only and never sent back to the browser.
+- **MQTT**: broker host, port, user, password, TLS and the device name in Home Assistant.
+- **Screen**: sleep timeout, sleep mode, brightness, wake/sleep now.
+
+## One-time tablet setup (over adb)
+
+```sh
+# "Screen off" sleep mode (lockNow)
+adb shell dpm set-active-admin io.github.thinke.biwurth/.AdminReceiver
+# Keeps Wireless debugging on after reboots
+adb shell pm grant io.github.thinke.biwurth android.permission.WRITE_SECURE_SETTINGS
+# Background: no Doze or app standby, so MQTT and the website stay up with the screen off
+adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
+adb shell am set-standby-bucket io.github.thinke.biwurth active
+```
+
+A foreground service (`PanelService`) keeps the process running when another app is in front,
+and holds the CPU awake while the screen is off so MQTT keep-alives don't stall.
+
+### Kiosk mode (device owner)
+
+Android only allows a device owner when no accounts are on the tablet, so remove the Google
+account first (Settings → Passwords & accounts). Then:
+
+```sh
+adb shell dpm set-device-owner io.github.thinke.biwurth/.AdminReceiver
+```
+
+The app then disables the lock screen, stays the home app and locks the tablet to itself
+(no status bar, Home or Recents). Turn kiosk mode off in the tablet's Settings to reach Android.
+To undo device owner: `adb shell dpm remove-active-admin io.github.thinke.biwurth/.AdminReceiver`
+(works for debug builds).
+
+## Sleep
+
+| Mode | Asleep | Wakes on |
+|---|---|---|
+| Backlight off (default) | screen on, backlight 0, black | a touch (the touch itself is not passed on), MQTT, the API |
+| Screen off | screen really off (`lockNow`) | the power button, MQTT, the API |
+
+The tablet's double-tap-to-wake setting is on but the touchscreen ignores it, hence these modes.
+Going to sleep returns the panel to its first page.
+
+## MQTT device
+
+Uses Home Assistant's device discovery (`homeassistant/device/biwurth_<id>/config`), so it needs
+Home Assistant 2024.11 or newer and the MQTT integration. Topics live under `biwurth/biwurth_<id>/`:
+`state` (retained JSON), `availability` (`online`/`offline`, also the last will) and
+`<screen|brightness|sleep_after|page>/set`. The device's page in Home Assistant links back to
+the website.
+
+## HTTP API
+
+Every `/api/*` call and the three below need `Authorization: Bearer <key>`:
+
+```sh
+curl -H "Authorization: Bearer $KEY" http://<tablet>:2323/state   # {"screen":"awake"|"dimmed"|"off"}
+curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/wake
+curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/sleep
+```
+
+Give the tablet a fixed IP (DHCP reservation) so the website and these keep working.
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled Inter font is under the SIL Open Font License
+([licenses/Inter-OFL.txt](licenses/Inter-OFL.txt)).

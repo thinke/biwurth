@@ -1,0 +1,335 @@
+package io.github.thinke.biwurth
+
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.view.Display
+import io.github.thinke.biwurth.config.CameraSettings
+import io.github.thinke.biwurth.config.HaSettings
+import io.github.thinke.biwurth.config.Layout
+import io.github.thinke.biwurth.config.MqttSettings
+import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.URL
+import java.security.MessageDigest
+import kotlin.concurrent.thread
+
+/**
+ * The panel's website and API on port [PORT]: the layout editor (assets/web) and the JSON API it
+ * uses for the layout, Home Assistant, MQTT and screen settings. Everything under /api, plus /state, /wake and /sleep for Home Assistant, needs
+ * `Authorization: Bearer <key>` with the key shown in the tablet's Settings.
+ */
+class WebServer(private val app: PanelApp) {
+    private val main = Handler(Looper.getMainLooper())
+
+    private class Request(
+        val method: String,
+        val path: String,
+        val query: String,
+        val headers: Map<String, String>,
+        val body: String,
+    )
+    private class Response(val status: Int, val type: String, val body: ByteArray)
+    private class BadRequest(message: String) : Exception(message)
+
+    fun start() {
+        thread(name = "web-server", isDaemon = true) {
+            try {
+                ServerSocket(PORT).use { server ->
+                    while (true) {
+                        val socket = server.accept()
+                        thread(name = "web-client", isDaemon = true) { socket.use(::handle) }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "web server stopped", e)
+            }
+        }
+    }
+
+    private fun handle(socket: Socket) {
+        socket.soTimeout = 10_000
+        val input = socket.getInputStream().buffered()
+        val request = try {
+            read(input) ?: return
+        } catch (e: IOException) {
+            return
+        }
+        val response = try {
+            route(request)
+        } catch (e: BadRequest) {
+            json(400, JSONObject().put("error", e.message))
+        } catch (e: JSONException) {
+            json(400, JSONObject().put("error", "Invalid JSON: ${e.message}"))
+        } catch (e: Exception) {
+            Log.e(TAG, "${request.method} ${request.path} failed", e)
+            json(500, JSONObject().put("error", e.message ?: e.javaClass.simpleName))
+        }
+        val head = "HTTP/1.1 ${response.status} ${REASONS[response.status] ?: ""}\r\n" +
+            "Content-Type: ${response.type}\r\nContent-Length: ${response.body.size}\r\n" +
+            "Cache-Control: no-store\r\nConnection: close\r\n\r\n"
+        socket.getOutputStream().apply {
+            write(head.toByteArray())
+            write(response.body)
+            flush()
+        }
+    }
+
+    private fun read(input: InputStream): Request? {
+        val requestLine = readLine(input)?.split(" ") ?: return null
+        if (requestLine.size < 2) return null
+        val headers = mutableMapOf<String, String>()
+        while (true) {
+            val line = readLine(input) ?: break
+            if (line.isEmpty()) break
+            headers[line.substringBefore(':').trim().lowercase()] = line.substringAfter(':').trim()
+        }
+        val length = headers["content-length"]?.toIntOrNull() ?: 0
+        if (length > MAX_BODY) throw IOException("body too large")
+        val body = ByteArray(length)
+        var read = 0
+        while (read < length) {
+            val n = input.read(body, read, length - read)
+            if (n < 0) throw IOException("body cut short")
+            read += n
+        }
+        val target = requestLine[1]
+        return Request(requestLine[0], target.substringBefore('?'), target.substringAfter('?', ""), headers, body.toString(Charsets.UTF_8))
+    }
+
+    private fun readLine(input: InputStream): String? {
+        val line = ByteArrayOutputStream()
+        while (true) {
+            val b = input.read()
+            if (b == -1) return if (line.size() == 0) null else line.toString("UTF-8")
+            if (b == '\n'.code) return line.toString("UTF-8")
+            if (b != '\r'.code) line.write(b)
+            if (line.size() > 8192) throw IOException("line too long")
+        }
+    }
+
+    private fun route(request: Request): Response {
+        val isApi = request.path.startsWith("/api/") || request.path in CONTROL_PATHS
+        if (!isApi) return if (request.method == "GET") static(request.path) else json(405, error("Method not allowed"))
+        if (!authorized(request.headers["authorization"].orEmpty())) return json(401, error("Wrong or missing key"))
+
+        val screen = app.screen
+        return when ("${request.method} ${request.path}") {
+            "GET /state", "GET /api/state" -> json(200, JSONObject().put("screen", screen.state.value.name.lowercase()))
+            "POST /wake", "POST /api/wake" -> {
+                main.post(screen::wake)
+                json(200, JSONObject().put("screen", "awake"))
+            }
+            "POST /sleep", "POST /api/sleep" -> {
+                main.post(screen::sleep)
+                json(200, JSONObject().put("screen", "sleeping"))
+            }
+            "GET /api/config" -> json(200, config())
+            "GET /api/status" -> json(200, status())
+            "GET /api/entities" -> json(200, entities())
+            "PUT /api/layout" -> {
+                // Compile first (check and preload), then switch: the new layout appears complete.
+                val layout = Layout.fromJson(JSONObject(request.body))
+                val report = runBlocking { LayoutCompiler(app).compile(layout) }
+                app.config.saveLayout(layout)
+                json(200, JSONObject().put("layout", layout.toJson()).put("report", report.toJson()))
+            }
+            "PUT /api/ha" -> {
+                val body = JSONObject(request.body)
+                val url = body.optString("url").trim()
+                if (url.isNotEmpty() && !url.matches(Regex("^https?://.+", RegexOption.IGNORE_CASE))) {
+                    throw BadRequest("The URL must start with http:// or https://")
+                }
+                // An empty token keeps the saved one, so the website never needs to see it.
+                val token = body.optString("token").trim().ifEmpty { app.config.ha.value.token }
+                app.config.saveHa(HaSettings(url, token))
+                json(200, config())
+            }
+            "PUT /api/mqtt" -> {
+                val body = JSONObject(request.body)
+                // An empty password keeps the saved one, like the Home Assistant token.
+                if (body.optString("password").isEmpty()) body.put("password", app.config.mqtt.value.password)
+                app.config.saveMqtt(MqttSettings.fromJson(body))
+                json(200, config())
+            }
+            "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
+            "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))
+            "GET /api/cameras" -> json(200, go2rtcStreams())
+            "PUT /api/cameras" -> {
+                app.config.saveCameras(CameraSettings.fromJson(JSONObject(request.body)))
+                json(200, config())
+            }
+            "PUT /api/screen" -> {
+                val body = JSONObject(request.body)
+                if (body.has("idleSeconds")) app.prefs.idleSeconds = body.getInt("idleSeconds").coerceIn(0, 86_400)
+                if (body.has("brightness")) {
+                    val brightness = body.getInt("brightness").coerceIn(-1, 100)
+                    main.post { screen.setBrightness(brightness) }
+                }
+                if (body.has("sleepMode")) {
+                    app.prefs.sleepMode = runCatching { SleepMode.valueOf(body.getString("sleepMode")) }
+                        .getOrElse { throw BadRequest("Unknown sleep mode") }
+                }
+                main.post(screen::restartIdleTimer)
+                json(200, config())
+            }
+            else -> json(404, error("Not found"))
+        }
+    }
+
+    private fun config(): JSONObject {
+        val ha = app.config.ha.value
+        val mqtt = app.config.mqtt.value
+        return JSONObject()
+            .put("layout", app.config.layout.value.toJson())
+            .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()))
+            .put("mqtt", mqtt.toJson().put("password", "").put("passwordSet", mqtt.password.isNotEmpty()))
+            .put("cameras", app.config.cameras.value.toJson())
+            .put(
+                "screen",
+                JSONObject()
+                    .put("idleSeconds", app.prefs.idleSeconds)
+                    .put("sleepMode", app.prefs.sleepMode.name)
+                    .put("brightness", app.prefs.brightness)
+                    .put("adminActive", Kiosk.isAdmin(app)),
+            )
+            .put("display", display())
+    }
+
+    // The panel's native size; the editor turns it to match the chosen orientation.
+    private fun display(): JSONObject {
+        val mode = app.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).mode
+        return JSONObject().put("width", mode.physicalWidth).put("height", mode.physicalHeight)
+    }
+
+    private fun status() = JSONObject()
+        .put("screen", app.screen.state.value.name.lowercase())
+        .put("page", app.screen.page.value)
+        .put("ha", app.ha.status.value)
+        .put("mqtt", app.mqtt.status.value)
+        .put("entities", app.ha.entities.value.size)
+
+    private fun entities(): JSONArray = JSONArray(
+        app.ha.entities.value.values.sortedBy { it.id }.map {
+            JSONObject().put("id", it.id).put("name", it.name).put("state", it.state).put("unit", it.unit)
+        },
+    )
+
+    /**
+     * Everything the website configures, in one file. The Home Assistant token and MQTT password
+     * only with [includeSecrets]; the website key never, so a backup can't open this panel.
+     */
+    private fun backup(includeSecrets: Boolean): JSONObject {
+        val ha = app.config.ha.value
+        val mqtt = app.config.mqtt.value
+        return JSONObject()
+            .put("type", "biwurth-backup")
+            .put("version", 1)
+            .put("created", java.time.Instant.now().toString())
+            .put("layout", app.config.layout.value.toJson())
+            .put("ha", JSONObject().put("url", ha.url).apply { if (includeSecrets) put("token", ha.token) })
+            .put("mqtt", mqtt.toJson().apply { if (!includeSecrets) remove("password") })
+            .put("cameras", app.config.cameras.value.toJson())
+            .put(
+                "screen",
+                JSONObject()
+                    .put("idleSeconds", app.prefs.idleSeconds)
+                    .put("sleepMode", app.prefs.sleepMode.name)
+                    .put("brightness", app.prefs.brightness)
+                    .put("kiosk", app.prefs.kiosk),
+            )
+    }
+
+    /** Applies the parts of a backup it contains; a missing token or password keeps the current one. */
+    private fun restore(backup: JSONObject): JSONObject {
+        // "panel-backup": files from before the app was named biwurth.
+        if (backup.optString("type") !in setOf("biwurth-backup", "panel-backup")) throw BadRequest("Not a biwurth backup file")
+        var report: LayoutCompiler.Report? = null
+        backup.optJSONObject("ha")?.let { ha ->
+            val token = ha.optString("token").ifEmpty { app.config.ha.value.token }
+            app.config.saveHa(HaSettings(ha.optString("url").trim(), token))
+        }
+        backup.optJSONObject("mqtt")?.let { mqtt ->
+            if (mqtt.optString("password").isEmpty()) mqtt.put("password", app.config.mqtt.value.password)
+            app.config.saveMqtt(MqttSettings.fromJson(mqtt))
+        }
+        backup.optJSONObject("cameras")?.let { app.config.saveCameras(CameraSettings.fromJson(it)) }
+        backup.optJSONObject("screen")?.let { screen ->
+            if (screen.has("idleSeconds")) app.prefs.idleSeconds = screen.getInt("idleSeconds").coerceIn(0, 86_400)
+            runCatching { SleepMode.valueOf(screen.getString("sleepMode")) }.onSuccess { app.prefs.sleepMode = it }
+            if (screen.has("kiosk")) app.prefs.kiosk = screen.getBoolean("kiosk")
+            if (screen.has("brightness")) {
+                val brightness = screen.getInt("brightness").coerceIn(-1, 100)
+                main.post { app.screen.setBrightness(brightness) }
+            }
+            main.post(app.screen::restartIdleTimer)
+        }
+        backup.optJSONObject("layout")?.let {
+            val layout = Layout.fromJson(it)
+            report = runBlocking { LayoutCompiler(app).compile(layout) }
+            app.config.saveLayout(layout)
+        }
+        return config().apply { report?.let { put("report", it.toJson()) } }
+    }
+
+    // The stream names go2rtc knows, for the camera picker; empty without go2rtc.
+    private fun go2rtcStreams(): JSONArray {
+        val base = app.config.cameras.value.go2rtcUrl.trim().trimEnd('/')
+        if (base.isEmpty()) return JSONArray()
+        return runCatching {
+            val connection = (URL("$base/api/streams").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3_000
+                readTimeout = 3_000
+            }
+            val streams = connection.inputStream.use { JSONObject(it.readBytes().toString(Charsets.UTF_8)) }
+            JSONArray(streams.keys().asSequence().sorted().toList())
+        }.getOrElse { throw BadRequest("go2rtc not reachable at $base: ${it.message}") }
+    }
+
+    private fun static(path: String): Response {
+        val file = if (path == "/") "index.html" else path.removePrefix("/")
+        if (".." in file) return json(404, error("Not found"))
+        return try {
+            val bytes = app.assets.open("web/$file").use { it.readBytes() }
+            Response(200, CONTENT_TYPES[file.substringAfterLast('.')] ?: "application/octet-stream", bytes)
+        } catch (e: FileNotFoundException) {
+            json(404, error("Not found"))
+        }
+    }
+
+    private fun authorized(header: String) =
+        MessageDigest.isEqual(header.toByteArray(), "Bearer ${app.prefs.token}".toByteArray())
+
+    private fun error(message: String) = JSONObject().put("error", message)
+
+    private fun json(status: Int, body: Any) =
+        Response(status, "application/json; charset=utf-8", body.toString().toByteArray())
+
+    companion object {
+        const val PORT = 2323
+        private const val TAG = "WebServer"
+        private const val MAX_BODY = 1 shl 20
+        private val CONTROL_PATHS = setOf("/state", "/wake", "/sleep")
+        private val REASONS = mapOf(
+            200 to "OK", 400 to "Bad Request", 401 to "Unauthorized",
+            404 to "Not Found", 405 to "Method Not Allowed", 500 to "Internal Server Error",
+        )
+        private val CONTENT_TYPES = mapOf(
+            "html" to "text/html; charset=utf-8",
+            "js" to "text/javascript; charset=utf-8",
+            "css" to "text/css; charset=utf-8",
+            "svg" to "image/svg+xml",
+            "png" to "image/png",
+        )
+    }
+}
