@@ -1,14 +1,11 @@
 package io.github.thinke.biwurth
 
-import android.Manifest
 import android.app.Application
 import android.app.admin.DevicePolicyManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.provider.Settings
 import io.github.thinke.biwurth.config.BackgroundStore
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.sources.Sources
@@ -44,7 +41,6 @@ class PanelApp : Application() {
         updater = Updater(this, prefs)
         mqtt = MqttDevice(this).also { it.start() }
         WebServer(this).start()
-        keepWirelessDebuggingOn()
         // Device owner can also be set or cleared while we run (adb); follow it at once.
         Kiosk.onRightsChanged(this)
         registerReceiver(
@@ -54,13 +50,6 @@ class PanelApp : Application() {
             IntentFilter(DevicePolicyManager.ACTION_DEVICE_OWNER_CHANGED),
             RECEIVER_NOT_EXPORTED,
         )
-    }
-
-    // Wireless debugging switches itself off on every reboot, which would leave a wall panel
-    // unreachable. With WRITE_SECURE_SETTINGS granted over adb (README) we switch it back on.
-    private fun keepWirelessDebuggingOn() {
-        if (checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return
-        runCatching { Settings.Global.putInt(contentResolver, "adb_wifi_enabled", 1) }
     }
 }
 

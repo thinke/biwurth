@@ -117,8 +117,6 @@ tablet's Settings, or on the website's Screen tab, opens Android's own dialog on
 biwurth can be uninstalled. The rest:
 
 ```sh
-# Keeps Wireless debugging on after reboots
-adb shell pm grant io.github.thinke.biwurth android.permission.WRITE_SECURE_SETTINGS
 # Background: no Doze or app standby, so MQTT and the website stay up with the screen off
 adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
 adb shell am set-standby-bucket io.github.thinke.biwurth active
