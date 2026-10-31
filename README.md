@@ -92,6 +92,11 @@ on the tablet itself. The routes that work without root:
 Frames would be decoded by simple signal definitions (id, start bit, length, byte order, scale,
 offset, unit) or an uploaded DBC file, and buttons could send frames.
 
+**Uploading logs and telemetry.** Today both stay on the tablet and are downloaded from the
+website (the Log tab, each source's card). Later biwurth could send them on by itself, for
+example nightly: an HTTP POST to an endpoint of your own, MQTT to Home Assistant, or a network
+share (SMB/WebDAV), with what to send and how often set on the website.
+
 ## Releases and updates
 
 Pushing a tag `v1.2.3` builds a signed APK on GitHub Actions and publishes it as a release with
