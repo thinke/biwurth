@@ -83,6 +83,13 @@ fun UpdatesSection(updater: Updater, prefs: Prefs) {
             autoInstall = it
             prefs.updateAutoInstall = it
         }
+        if (!updater.installsSilently) {
+            Text(
+                "Before Android 12 only a device-owner panel installs by itself; otherwise install here and confirm.",
+                color = MUTED,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
         Toggle("Include pre-releases", prerelease) {
             prerelease = it
             prefs.updatePrerelease = it

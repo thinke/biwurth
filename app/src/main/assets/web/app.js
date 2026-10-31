@@ -857,6 +857,7 @@ function renderUpdate(u) {
   $('#updatePermission').hidden = u.state !== 'needsPermission';
   $('#updateAuto').checked = u.check;
   $('#updateAutoInstall').checked = u.autoInstall;
+  $('#updateAutoInstallNote').hidden = u.silentInstall !== false;
   $('#updatePre').checked = u.prerelease;
   if (['checking', 'downloading', 'installing'].includes(u.state)) setTimeout(() => refreshUpdate(), 1500);
 }

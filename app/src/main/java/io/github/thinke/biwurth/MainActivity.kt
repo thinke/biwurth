@@ -1,6 +1,7 @@
 package io.github.thinke.biwurth
 
 import android.content.pm.ActivityInfo
+import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.WindowManager
@@ -41,13 +42,17 @@ class MainActivity : ComponentActivity() {
         // Our idle timer decides when to sleep, not the system screen timeout.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         // Shown over the lock screen when Home Assistant wakes us without device owner.
-        setShowWhenLocked(true)
-        setTurnScreenOn(true)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            // Not FLAG_TURN_SCREEN_ON: on 8.0 it wakes the screen at every relayout, which would undo
+            // "Screen off" sleep. ScreenController wakes the screen with a wake lock instead.
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
         }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        hideSystemBars()
         // A launcher has nowhere to go back to; Settings handles Back itself.
         onBackPressedDispatcher.addCallback(this) {}
 
@@ -92,6 +97,20 @@ class MainActivity : ComponentActivity() {
         if (panel.prefs.kiosk) Kiosk.enter(this)
         screen.userActivity()
         panel.updater.checkOnStart()
+    }
+
+    // Before Android 11 the hidden bars are only view flags, which Android clears when a dialog, the
+    // installer or the lock screen takes focus; hide them again when we get it back.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
+    }
+
+    private fun hideSystemBars() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {

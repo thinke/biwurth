@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * whole screen, whatever its size or orientation, and places each tile on its cells.
  * [currentPage] is shared with Home Assistant (MQTT), which can switch pages too.
  */
+// currentPage.value only seeds the pager; later changes arrive through the LaunchedEffect below.
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettings: () -> Unit) {
     val theme = PanelTheme.from(layout.theme)

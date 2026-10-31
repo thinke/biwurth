@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Handler
@@ -357,7 +358,14 @@ class MqttDevice(private val app: PanelApp) {
         val cm = app.getSystemService(ConnectivityManager::class.java)
         val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return null
         if (!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) return null
-        return caps.signalStrength.takeIf { it != NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return caps.signalStrength.takeIf { it != NetworkCapabilities.SIGNAL_STRENGTH_UNSPECIFIED }
+        }
+        // NetworkCapabilities has no signal strength before 10; WifiManager gives the same dBm.
+        @Suppress("DEPRECATION")
+        val rssi = app.applicationContext.getSystemService(WifiManager::class.java)?.connectionInfo?.rssi
+        // -127 and Int.MIN_VALUE are what WifiInfo reports when it doesn't know.
+        return rssi?.takeIf { it != -127 && it != Int.MIN_VALUE }
     }
 
     private fun ipAddress(): String? {

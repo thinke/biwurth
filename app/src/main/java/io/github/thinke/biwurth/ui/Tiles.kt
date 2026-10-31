@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -51,7 +53,6 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
-import java.util.Locale
 import kotlin.time.Duration.Companion.minutes
 
 // Text follows the tile's size, but never below what's readable from a step away.
@@ -85,12 +86,15 @@ private fun TileContent(tile: Tile, ha: DataHub) {
  * One entity's live state. Each tile watches only its own entities, so the many state changes
  * elsewhere in Home Assistant (power sensors every few seconds) don't redraw every tile.
  */
+// Reading .value once as the starting state, so a tile doesn't flash empty before the first collect.
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 private fun DataHub.entity(id: String?): HomeAssistant.Entity? {
     val flow = remember(this, id) { entities.map { all -> id?.let { all[it] } }.distinctUntilChanged() }
     return flow.collectAsState(initial = id?.let { entities.value[it] }).value
 }
 
+@SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> {
     val flow = remember(this, ids) { entities.map { all -> ids.map { all[it] } }.distinctUntilChanged() }
@@ -434,7 +438,7 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
             Row(Modifier.fillMaxWidth()) {
                 days.forEach { day ->
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(day.time.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()), color = theme.muted, fontSize = detail(14.dp))
+                        Text(day.time.dayOfWeek.getDisplayName(TextStyle.SHORT, LocalLocale.current.platformLocale), color = theme.muted, fontSize = detail(14.dp))
                         Text(conditionIcon(day.condition), color = theme.text, fontSize = label(24.dp))
                         Text(
                             listOfNotNull(day.high?.let(::formatTemp), day.low?.let(::formatTemp)).joinToString(" / "),
