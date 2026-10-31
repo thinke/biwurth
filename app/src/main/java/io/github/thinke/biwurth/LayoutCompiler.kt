@@ -98,8 +98,10 @@ class LayoutCompiler(private val app: PanelApp) {
         }
     }
 
+    // The entities a tile shows: its entity (or several, comma separated) and a button's measurement.
     private fun entityIds(tile: Tile) =
-        tile.prop("entity")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
+        (tile.prop("entity")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()) +
+            listOfNotNull(tile.prop("measurement")).filter { tile.type == "toggle" }
 
     private fun overlap(a: Tile, b: Tile) = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 

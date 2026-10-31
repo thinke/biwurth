@@ -207,6 +207,8 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val id = tile.prop("entity")
     val entity = ha.entity(id)
+    // Optionally a related number in the middle: a plug's power, a pump's flow.
+    val measurement = tile.prop("measurement")?.let { ha.entity(it) }
     val on = entity?.state in ON_STATES
     Card(
         color = if (on) theme.accent else theme.card,
@@ -220,9 +222,19 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
                 color = if (on) theme.onAccent else theme.text,
                 fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
                 fontWeight = FontWeight.Medium,
-                maxLines = 2,
+                maxLines = if (tile.prop("measurement") != null) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (tile.prop("measurement") != null) {
+                val value = formatState(tile, measurement)
+                Text(
+                    value,
+                    color = if (on) theme.onAccent else theme.text,
+                    fontSize = main(minOf(maxHeight * 0.32f, maxWidth / (value.length.coerceAtLeast(3) * 0.55f))),
+                    fontWeight = FontWeight.Light,
+                    maxLines = 1,
+                )
+            }
             Text(
                 entity?.let { stateLabel(it.state) } ?: "–",
                 color = if (on) theme.onAccent else theme.muted,

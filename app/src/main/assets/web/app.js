@@ -5,7 +5,7 @@ const TYPES = {
   clock: { label: 'Clock', size: [4, 2], fields: ['date', 'opacity', 'textSize'] },
   entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'opacity', 'textSize'] },
   toggle: {
-    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'opacity', 'textSize'],
+    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'measurement', 'unit', 'decimals', 'opacity', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
@@ -20,6 +20,7 @@ const TYPES = {
 const FIELDS = {
   entity: { label: 'Entity', placeholder: 'sensor.living_room_temperature' },
   name: { label: 'Name', placeholder: 'Name from Home Assistant' },
+  measurement: { label: 'Measurement (optional)', placeholder: 'sensor.coffee_maker_power', list: 'allEntities' },
   unit: { label: 'Unit', placeholder: 'Unit from Home Assistant' },
   decimals: { label: 'Decimals', type: 'number', placeholder: 'As reported' },
   hours: { label: 'Hours shown', type: 'number', placeholder: '24' },
@@ -260,7 +261,8 @@ function tileElement(tile) {
   place(el, tile);
   const ids = entityIds(tile);
   const e = ids.length === 1 ? entity(ids[0]) : null;
-  const values = ids.map(entity).filter(Boolean).map((x) => `${x.state} ${x.unit}`.trim());
+  const measured = tile.props.measurement ? entity(tile.props.measurement) : null;
+  const values = [...(measured ? [measured] : []), ...ids.map(entity).filter(Boolean)].map((x) => `${x.state} ${x.unit}`.trim());
   for (const [cls, text] of [
     ['type', TYPES[tile.type]?.label ?? tile.type],
     ['name', tile.props.name || e?.name || (ids.length > 1 ? `${ids.length} ${TYPES[tile.type].multi}s` : ids[0] || '')],
@@ -371,6 +373,7 @@ function renderTileForm() {
         input.setAttribute('list', 'entityList');
         input.autocomplete = 'off';
       }
+      if (field.list === 'allEntities') fillAllEntities();
       if (field.list) {
         input.setAttribute('list', field.list);
         input.autocomplete = 'off';
@@ -463,6 +466,15 @@ function multiEntityEditor(tile, type) {
   add.addEventListener('click', () => wrap.insertBefore(row('', ''), add).querySelector('.ent').focus());
   wrap.append(add);
   return wrap;
+}
+
+function fillAllEntities() {
+  $('#allEntities').replaceChildren(...entities.map((e) => {
+    const option = document.createElement('option');
+    option.value = e.id;
+    option.label = `${e.name} (${e.state}${e.unit ? ' ' + e.unit : ''})`;
+    return option;
+  }));
 }
 
 function fillEntityList(domains) {
