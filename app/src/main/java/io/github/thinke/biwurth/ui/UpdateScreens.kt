@@ -1,19 +1,10 @@
 package io.github.thinke.biwurth.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -39,91 +30,21 @@ import kotlinx.coroutines.launch
 
 private val MUTED = Color.White.copy(alpha = 0.65f)
 
-/**
- * Shown over the panel when an update is found, as in SnapTV: what's new, then download,
- * install permission and failure in the same box. [onClose] hides it until the next release.
- */
 @Composable
-fun UpdatePrompt(updater: Updater, onClose: () -> Unit) {
-    val state by updater.state.collectAsState()
-    Box(Modifier.fillMaxSize().background(Color(0xA0000000)), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.widthIn(max = 560.dp).heightIn(max = 520.dp).padding(24.dp)
-                .background(Color(0xFF1C1C1E), RoundedCornerShape(20.dp)).padding(24.dp),
-        ) {
-            UpdatePanel(state, updater, onClose)
-        }
-    }
-}
-
-@Composable
-private fun ColumnScope.UpdatePanel(state: UpdateState, updater: Updater, onClose: () -> Unit) {
-    when (state) {
-        is UpdateState.Available -> {
-            val r = state.release
-            Text("biwurth ${r.version} is available", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-            Text("You have ${updater.installed}", color = MUTED, modifier = Modifier.padding(top = 4.dp, bottom = 12.dp))
-            ChangeList(r, Modifier.weight(1f, fill = false))
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = { updater.install(r) }) { Text("Update") }
-                OutlinedButton(onClick = onClose) { Text("Later") }
-                OutlinedButton(onClick = {
-                    updater.skip(r)
-                    onClose()
-                }) { Text("Skip this version") }
-            }
-        }
-        is UpdateState.Downloading -> {
-            Text("Downloading biwurth ${state.release.version}…", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            LinearProgressIndicator(progress = { state.fraction }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp))
-            Text("${(state.fraction * 100).toInt()} %", color = MUTED, modifier = Modifier.padding(top = 8.dp))
-        }
-        is UpdateState.Installing -> {
-            Text("Installing biwurth ${state.release.version}", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            Text(
-                "Confirm on Android's install screen if it asks. biwurth restarts with the new version.",
-                color = MUTED, modifier = Modifier.padding(top = 12.dp),
-            )
-        }
-        is UpdateState.NeedsPermission -> {
-            Text("One more step", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            Text(
-                "Android needs to allow biwurth to install apps. Turn on the switch for biwurth, come back, and tap Update again.",
-                color = MUTED, modifier = Modifier.padding(top = 12.dp),
-            )
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = updater::openInstallPermissionSettings) { Text("Open settings") }
-                OutlinedButton(onClick = { updater.install(state.release) }) { Text("Update") }
-                OutlinedButton(onClick = onClose) { Text("Later") }
-            }
-        }
-        is UpdateState.Failed -> {
-            Text("Update failed", style = MaterialTheme.typography.titleLarge, color = Color.White)
-            Text(state.message, color = MUTED, modifier = Modifier.padding(top = 12.dp))
-            Row(Modifier.padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                state.release?.let { r -> Button(onClick = { updater.install(r) }) { Text("Try again") } }
-                OutlinedButton(onClick = onClose) { Text("Close") }
-            }
-        }
-        else -> {
-            Text(statusText(state, updater), color = Color.White)
-            OutlinedButton(onClick = onClose, modifier = Modifier.padding(top = 16.dp)) { Text("Close") }
-        }
-    }
-}
-
-@Composable
-private fun ChangeList(r: Release, modifier: Modifier) {
+private fun ChangeList(r: Release) {
     if (r.changes.isEmpty()) return
-    Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         r.changes.forEach { change ->
-            Text("What's new in ${change.version}", color = MUTED, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
-            change.lines.forEach { Text("•  $it", color = Color.White, style = MaterialTheme.typography.bodyMedium) }
+            Text("What's new in ${change.version}", color = MUTED, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+            change.lines.forEach { Text("•  $it", style = MaterialTheme.typography.bodyMedium) }
         }
     }
 }
 
-/** The Updates part of the tablet's Settings screen. */
+/**
+ * The Updates part of the tablet's Settings screen, the only place on the tablet that shows
+ * updates: the panel pages stay free of prompts.
+ */
 @Composable
 fun UpdatesSection(updater: Updater, prefs: Prefs) {
     val state by updater.state.collectAsState()
@@ -143,6 +64,16 @@ fun UpdatesSection(updater: Updater, prefs: Prefs) {
                 is UpdateState.Failed -> s.release?.let { r -> Button(onClick = { updater.install(r) }) { Text("Try again") } }
                 else -> {}
             }
+        }
+        when (val s = state) {
+            is UpdateState.Available -> ChangeList(s.release)
+            is UpdateState.Downloading -> LinearProgressIndicator(progress = { s.fraction }, modifier = Modifier.fillMaxWidth())
+            is UpdateState.Installing -> Text("Confirm on Android's install screen if it asks; biwurth restarts with the new version.", color = MUTED)
+            is UpdateState.NeedsPermission -> Text(
+                "Android needs to allow biwurth to install apps: turn on the switch for biwurth, come back and install again.",
+                color = MUTED,
+            )
+            else -> {}
         }
         Toggle("Check for updates daily", check) {
             check = it
