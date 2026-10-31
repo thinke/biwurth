@@ -430,7 +430,8 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
             val size = (if (tall) maxHeight * 0.3f else maxHeight * 0.5f).coerceAtMost(maxWidth * 0.18f)
             Text(conditionIcon(entity?.state), color = theme.text, fontSize = main(size * 0.9f))
             Text(
-                temperature?.let { "${formatTemp(it)}$unit" } ?: "–",
+                // The unit already has its degree sign ("°C"); formatTemp's is for the bare forecast numbers.
+                temperature?.let { "%.0f%s".format(it, unit.ifEmpty { "°" }) } ?: "–",
                 color = theme.text, fontSize = main(size * 0.8f), fontWeight = FontWeight.Light, modifier = Modifier.padding(start = 12.dp),
             )
         }
