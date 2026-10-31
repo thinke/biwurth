@@ -82,6 +82,13 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                 if (!isAdmin) {
                 Hint("Screen off needs biwurth to be a device admin.")
                 OutlinedButton(onClick = { Kiosk.requestAdmin(activity) }) { Text("Allow screen off") }
+            } else if (!isOwner) {
+                OutlinedButton(onClick = {
+                    Kiosk.removeAdmin(activity)
+                    mode = SleepMode.BACKLIGHT_OFF
+                    prefs.sleepMode = mode
+                }) { Text("Remove device admin") }
+                Hint("Needed before biwurth can be uninstalled. Screen off sleep stops working.")
             }
             }
 

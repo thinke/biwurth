@@ -61,8 +61,10 @@ never update.
 
 ## One-time tablet setup (over adb)
 
-Device admin (for the "Screen off" sleep mode) needs no adb: the tablet's Settings has an
-**Allow screen off** button that opens Android's own dialog. The rest:
+Device admin (for the "Screen off" sleep mode) needs no adb: **Allow screen off** in the
+tablet's Settings, or on the website's Screen tab, opens Android's own dialog on the tablet.
+**Remove device admin** in the tablet's Settings gives it back, which Android requires before
+biwurth can be uninstalled. The rest:
 
 ```sh
 # Keeps Wireless debugging on after reboots

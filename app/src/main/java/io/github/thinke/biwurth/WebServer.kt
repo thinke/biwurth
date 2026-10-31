@@ -194,6 +194,10 @@ class WebServer(private val app: PanelApp) {
                 app.config.saveCameras(CameraSettings.fromJson(JSONObject(request.body)))
                 json(200, config())
             }
+            "POST /api/admin/request" -> {
+                main.post { Kiosk.requestAdmin(app) }
+                json(200, JSONObject().put("message", "Confirm on the tablet"))
+            }
             "PUT /api/screen" -> {
                 val body = JSONObject(request.body)
                 if (body.has("idleSeconds")) app.prefs.idleSeconds = body.getInt("idleSeconds").coerceIn(0, 86_400)

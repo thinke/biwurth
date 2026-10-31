@@ -778,6 +778,7 @@ function fillSettings() {
   $('#idle').value = String(s.idleSeconds);
   $('#sleepMode').value = s.sleepMode;
   $('#sleepMode option[value=SCREEN_OFF]').disabled = !s.adminActive;
+  $('#adminRequest').hidden = s.adminActive;
   $('#brightnessSystem').checked = s.brightness < 0;
   $('#brightness').value = s.brightness < 0 ? 80 : s.brightness;
   $('#brightness').disabled = s.brightness < 0;
@@ -853,6 +854,12 @@ $('#tab-screen').addEventListener('submit', (event) => {
     sleepMode: $('#sleepMode').value,
     brightness: $('#brightnessSystem').checked ? -1 : parseInt($('#brightness').value, 10),
   });
+});
+
+// Opens Android's "Activate device admin" dialog on the tablet; reload once it's confirmed there.
+$('#adminRequestBtn').addEventListener('click', async () => {
+  await api('POST', '/api/admin/request');
+  $('#adminRequestBtn').textContent = 'Confirm on the tablet, then reload this page';
 });
 
 $('#wakeBtn').addEventListener('click', () => api('POST', '/api/wake').then(refreshStatus));

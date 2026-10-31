@@ -39,13 +39,22 @@ object Kiosk {
         deviceOwner.value = isDeviceOwner(context)
     }
 
-    /** Android's own "Activate device admin?" dialog: enough for the "Screen off" sleep mode. */
-    fun requestAdmin(activity: Activity) {
-        activity.startActivity(
+    /**
+     * Android's own "Activate device admin?" dialog on the tablet (also from the website):
+     * enough for the "Screen off" sleep mode.
+     */
+    fun requestAdmin(context: Context) {
+        context.startActivity(
             Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
-                .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin(activity))
-                .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Lets biwurth switch the screen off when it sleeps."),
+                .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin(context))
+                .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Lets biwurth switch the screen off when it sleeps.")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
         )
+    }
+
+    /** Drops device admin, so biwurth can be uninstalled; adb can't remove an admin that isn't a test app. */
+    fun removeAdmin(context: Context) {
+        if (isAdmin(context) && !isDeviceOwner(context)) dpm(context).removeActiveAdmin(admin(context))
     }
     fun isDeviceOwner(context: Context) = dpm(context).isDeviceOwnerApp(context.packageName)
 
