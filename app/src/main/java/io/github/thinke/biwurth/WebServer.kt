@@ -187,6 +187,19 @@ class WebServer(private val app: PanelApp) {
                 if (body.has("autoInstall")) app.prefs.updateAutoInstall = body.getBoolean("autoInstall")
                 json(200, app.updater.stateJson())
             }
+            "POST /api/provisioning" -> {
+                // The release to install: the newest seen on GitHub, else this one.
+                val body = JSONObject(request.body.ifBlank { "{}" })
+                val version = app.updater.latest?.version ?: app.updater.installed
+                val payload = Provisioning.payload(app, version, body.optString("wifiSsid"), body.optString("wifiPassword"))
+                json(
+                    200,
+                    JSONObject()
+                        .put("version", version.toString())
+                        .put("debugBuild", BuildConfig.DEBUG)
+                        .put("svg", Provisioning.qrSvg(payload.toString())),
+                )
+            }
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
             "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))
             "GET /api/cameras" -> json(200, go2rtcStreams())

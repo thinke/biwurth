@@ -745,6 +745,24 @@ for (const [id, field] of [['#updateAuto', 'check'], ['#updateAutoInstall', 'aut
   $(id).addEventListener('change', async () => renderUpdate(await api('PUT', '/api/update/settings', { [field]: $(id).checked })));
 }
 
+// ---- New tablet setup (QR provisioning) ---------------------------------------------------------
+
+$('#provQrBtn').addEventListener('click', async () => {
+  try {
+    const result = await api('POST', '/api/provisioning', {
+      wifiSsid: $('#provSsid').value.trim(),
+      wifiPassword: $('#provPassword').value,
+    });
+    // The SVG comes from the tablet itself (ZXing), so this page needs no internet.
+    $('#provQr').innerHTML = result.svg;
+    $('#provInfo').textContent = result.debugBuild
+      ? `This panel runs a debug build: its key matches no GitHub release, so a tablet can't use this code.`
+      : `Installs biwurth ${result.version} from GitHub.`;
+  } catch (e) {
+    $('#provInfo').textContent = e.message;
+  }
+});
+
 // ---- Settings tabs ------------------------------------------------------------------------------
 
 function showTab(name) {

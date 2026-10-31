@@ -153,3 +153,5 @@ aside {
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; }
 }
+
+.qr svg { width: min(100%, 320px); height: auto; margin-top: 8px; border-radius: 6px; }

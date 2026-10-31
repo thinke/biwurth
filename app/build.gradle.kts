@@ -68,4 +68,6 @@ dependencies {
     implementation(libs.media3.exoplayer.rtsp)
     implementation(libs.media3.exoplayer.hls)
     implementation(libs.media3.ui)
+    // QR code for setting up a new tablet (Provisioning)
+    implementation(libs.zxing.core)
 }

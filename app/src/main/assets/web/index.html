@@ -197,6 +197,19 @@
         <p class="muted">Replaces the settings in the file. A file without the token or password keeps
           the ones the tablet has.</p>
         <button type="button" id="backupRestore">Restore from file…</button>
+
+        <h2>Set up a new tablet</h2>
+        <p class="muted">Makes a factory-reset tablet a biwurth panel, device owner included, without adb
+          or a Google account. On the tablet's first "Welcome" screen, tap six times in the same spot,
+          connect to Wi-Fi if it asks, and scan this code. Android downloads biwurth from GitHub and
+          checks it's signed with this panel's key. Then restore a backup here.</p>
+        <label>Wi-Fi name (optional) <input id="provSsid" autocomplete="off"></label>
+        <label>Wi-Fi password <input id="provPassword" type="password" autocomplete="off"></label>
+        <p class="muted">With Wi-Fi in the code the tablet connects by itself; the password is then readable
+          by anyone who scans it.</p>
+        <button type="button" id="provQrBtn">Show setup QR code</button>
+        <p id="provInfo" class="muted"></p>
+        <div id="provQr" class="qr"></div>
       </div>
       <div id="tab-updates" class="tab" hidden>
         <h2>Updates</h2>

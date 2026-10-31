@@ -52,6 +52,26 @@
                 android:value="Wall display: keeps its local web server, Home Assistant connection and MQTT device online" />
         </service>
 
+        <!-- QR setup of a new tablet (Provisioning): Android 12+ asks the owner app these two. -->
+        <activity
+            android:name=".ProvisioningModeActivity"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.GET_PROVISIONING_MODE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".PolicyComplianceActivity"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <intent-filter>
+                <action android:name="android.app.action.ADMIN_POLICY_COMPLIANCE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".update.InstallResultReceiver"
             android:exported="false" />

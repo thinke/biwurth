@@ -95,6 +95,16 @@ one. Turn kiosk mode off in the tablet's Settings to reach Android.
 adb can't remove a device owner. To undo it, use **Release device owner** in the tablet's
 Settings (top-left corner, five taps); after that biwurth can be uninstalled.
 
+### Setting up a new tablet with a QR code
+
+Instead of adb, a factory-reset tablet can become a biwurth panel straight from Android's setup:
+on any running panel's website, Backup → **Set up a new tablet** shows a QR code (optionally with
+Wi-Fi). On the new tablet's first "Welcome" screen, tap six times in the same spot and scan it:
+Android downloads the latest biwurth release from GitHub, checks it's signed with the release
+key, and makes it device owner, which then configures itself. No Google account is added.
+Restore a backup from the old panel's website to bring the layout over. The code only works
+from a panel running a release build (it carries the release key's checksum).
+
 ## Sleep
 
 | Mode | Asleep | Wakes on |
