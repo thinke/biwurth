@@ -207,7 +207,8 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val id = tile.prop("entity")
     val entity = ha.entity(id)
-    // Optionally a related number in the middle: a plug's power, a pump's flow.
+    // Optionally a related number: a plug's power, a pump's flow.
+    val measured = tile.prop("measurement") != null
     val measurement = tile.prop("measurement")?.let { ha.entity(it) }
     val on = entity?.state in ON_STATES
     Card(
@@ -216,27 +217,45 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     ) {
         val maxWidth = maxWidth
         val maxHeight = maxHeight
+        val textColor = if (on) theme.onAccent else theme.text
+        val name = tile.prop("name") ?: entity?.name ?: id ?: "Button"
+        val state = entity?.let { stateLabel(it.state) } ?: "–"
+        val value = formatState(tile, measurement)
+        // A one-row button has no room for three lines: name and state left, the number right.
+        if (measured && maxHeight < 90.dp) {
+            Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, color = textColor, fontSize = label((maxHeight * 0.32f).coerceAtLeast(MIN_TEXT), fits = true),
+                        fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(state, color = if (on) theme.onAccent else theme.muted, fontSize = detail(MIN_TEXT * 0.85f), maxLines = 1)
+                }
+                Text(
+                    value, color = textColor, fontWeight = FontWeight.Light, maxLines = 1,
+                    fontSize = main(minOf(maxHeight * 0.6f, maxWidth * 0.5f / (value.length.coerceAtLeast(3) * 0.55f))),
+                )
+            }
+            return@Card
+        }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Text(
-                tile.prop("name") ?: entity?.name ?: id ?: "Button",
-                color = if (on) theme.onAccent else theme.text,
+                name,
+                color = textColor,
                 fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
                 fontWeight = FontWeight.Medium,
-                maxLines = if (tile.prop("measurement") != null) 1 else 2,
+                maxLines = if (measured) 1 else 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            if (tile.prop("measurement") != null) {
-                val value = formatState(tile, measurement)
+            if (measured) {
                 Text(
                     value,
-                    color = if (on) theme.onAccent else theme.text,
+                    color = textColor,
                     fontSize = main(minOf(maxHeight * 0.32f, maxWidth / (value.length.coerceAtLeast(3) * 0.55f))),
                     fontWeight = FontWeight.Light,
                     maxLines = 1,
                 )
             }
             Text(
-                entity?.let { stateLabel(it.state) } ?: "–",
+                state,
                 color = if (on) theme.onAccent else theme.muted,
                 fontSize = detail(minOf(maxHeight * 0.14f, maxWidth * 0.1f).coerceAtLeast(MIN_TEXT * 0.85f)),
             )
