@@ -61,7 +61,8 @@ page id or its number from 0):
 
 ## Panel
 
-- GET /api/status: screen state, page shown, Home Assistant and MQTT connection.
+- GET /api/status: screen state, page shown, Home Assistant and MQTT connection, and `memory`:
+  the panel's own use (appMb, PSS) and what the tablet has left (deviceAvailableMb), in MB.
 - GET /state, POST /wake, POST /sleep: the screen.
 - GET /api/config: layout, MQTT, cameras and screen settings in one.
 - GET /api/logs: the last 500 log lines (plain text); GET /api/logs/all for all of them.

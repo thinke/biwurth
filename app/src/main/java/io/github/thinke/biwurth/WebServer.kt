@@ -328,6 +328,25 @@ class WebServer(private val app: PanelApp) {
         .put("mqtt", app.mqtt.status.value)
         .put("entities", app.sources.homeAssistants.value.values.sumOf { it.entities.value.size })
         .put("ownEntities", app.sources.entities.value.size)
+        .put("memory", memory())
+
+    // The panel's own memory and how much the tablet has left, in MB: PSS counts the shared parts
+    // fairly, so it's the figure to watch over time.
+    private fun memory(): JSONObject {
+        val own = android.os.Debug.MemoryInfo().also(android.os.Debug::getMemoryInfo)
+        val device = android.app.ActivityManager.MemoryInfo()
+        app.getSystemService(android.app.ActivityManager::class.java).getMemoryInfo(device)
+        val runtime = Runtime.getRuntime()
+        fun mb(bytes: Long) = bytes / (1 shl 20)
+        return JSONObject()
+            .put("appMb", own.totalPss / 1024)
+            .put("javaHeapMb", mb(runtime.totalMemory() - runtime.freeMemory()))
+            .put("javaHeapMaxMb", mb(runtime.maxMemory()))
+            .put("nativeHeapMb", mb(android.os.Debug.getNativeHeapAllocatedSize()))
+            .put("deviceAvailableMb", mb(device.availMem))
+            .put("deviceTotalMb", mb(device.totalMem))
+            .put("deviceLow", device.lowMemory)
+    }
 
     // "Connected" for one, "2 of 3 connected" for several, "None" without any.
     private fun haSummary(): String {
