@@ -5,10 +5,12 @@ import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-data class HaSettings(val url: String = "", val token: String = "") {
+/** The one Home Assistant connection; [enabled] off keeps the settings but doesn't connect. */
+data class HaSettings(val url: String = "", val token: String = "", val enabled: Boolean = true) {
     val configured get() = url.isNotBlank() && token.isNotBlank()
 }
 
@@ -80,19 +82,20 @@ data class CameraSettings(
 
 /**
  * The panel's configuration, edited from the website: the layout, the Home Assistant connection, the
- * MQTT broker and cameras. Kept as JSON files in app storage; the token and password never leave the tablet.
+ * MQTT broker, cameras and biwurth's own data sources. Kept as JSON files in app storage; the token and password never leave the tablet.
  */
 class ConfigStore(context: Context) {
     private val layoutFile = File(context.filesDir, "layout.json")
     private val haFile = File(context.filesDir, "ha.json")
     private val mqttFile = File(context.filesDir, "mqtt.json")
     private val camerasFile = File(context.filesDir, "cameras.json")
+    private val sourcesFile = File(context.filesDir, "sources.json")
 
     private val _layout = MutableStateFlow(read(layoutFile)?.let(Layout::fromJson) ?: Layout.DEFAULT)
     val layout: StateFlow<Layout> = _layout
 
     private val _ha = MutableStateFlow(
-        read(haFile)?.let { HaSettings(it.optString("url"), it.optString("token")) } ?: HaSettings(),
+        read(haFile)?.let { HaSettings(it.optString("url"), it.optString("token"), it.optBoolean("enabled", true)) } ?: HaSettings(),
     )
     val ha: StateFlow<HaSettings> = _ha
 
@@ -102,6 +105,12 @@ class ConfigStore(context: Context) {
     private val _cameras = MutableStateFlow(read(camerasFile)?.let(CameraSettings::fromJson) ?: CameraSettings())
     val cameras: StateFlow<CameraSettings> = _cameras
 
+    private val _sources = MutableStateFlow(
+        runCatching { if (sourcesFile.exists()) JSONArray(sourcesFile.readText()) else null }.getOrNull()
+            ?.let(SourceConfig::listFromJson).orEmpty(),
+    )
+    val sources: StateFlow<List<SourceConfig>> = _sources
+
     @Synchronized
     fun saveLayout(layout: Layout) {
         write(layoutFile, layout.toJson())
@@ -110,7 +119,7 @@ class ConfigStore(context: Context) {
 
     @Synchronized
     fun saveHa(settings: HaSettings) {
-        write(haFile, JSONObject().put("url", settings.url).put("token", settings.token))
+        write(haFile, JSONObject().put("url", settings.url).put("token", settings.token).put("enabled", settings.enabled))
         _ha.value = settings
     }
 
@@ -124,6 +133,14 @@ class ConfigStore(context: Context) {
     fun saveCameras(settings: CameraSettings) {
         write(camerasFile, settings.toJson())
         _cameras.value = settings
+    }
+
+    @Synchronized
+    fun saveSources(sources: List<SourceConfig>) {
+        val tmp = File(sourcesFile.parentFile, "${sourcesFile.name}.tmp")
+        tmp.writeText(JSONArray(sources.map { it.toJson() }).toString(2))
+        tmp.renameTo(sourcesFile)
+        _sources.value = sources
     }
 
     private fun read(file: File): JSONObject? =

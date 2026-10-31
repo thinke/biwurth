@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import io.github.thinke.biwurth.config.Tile
 import io.github.thinke.biwurth.ha.HomeAssistant
+import io.github.thinke.biwurth.DataHub
 import io.github.thinke.biwurth.panel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -59,7 +60,7 @@ private val ON_STATES = setOf("on", "open", "opening", "playing", "home", "unloc
 
 @Composable
 fun TileView(tile: Tile) {
-    val ha = LocalContext.current.panel.ha
+    val ha = LocalContext.current.panel.hub
     val opacity = tile.prop("opacity")?.toIntOrNull()?.coerceIn(0, 100)?.div(100f) ?: LocalTileOpacity.current
     CompositionLocalProvider(LocalTileTextSize provides tile.prop("textSize"), LocalTileOpacity provides opacity) {
         TileContent(tile, ha)
@@ -67,7 +68,7 @@ fun TileView(tile: Tile) {
 }
 
 @Composable
-private fun TileContent(tile: Tile, ha: HomeAssistant) {
+private fun TileContent(tile: Tile, ha: DataHub) {
     when (tile.type) {
         "clock" -> ClockTile(tile)
         "entity" -> Card { EntityTile(tile, ha) }
@@ -84,13 +85,13 @@ private fun TileContent(tile: Tile, ha: HomeAssistant) {
  * elsewhere in Home Assistant (power sensors every few seconds) don't redraw every tile.
  */
 @Composable
-private fun HomeAssistant.entity(id: String?): HomeAssistant.Entity? {
+private fun DataHub.entity(id: String?): HomeAssistant.Entity? {
     val flow = remember(this, id) { entities.map { all -> id?.let { all[it] } }.distinctUntilChanged() }
     return flow.collectAsState(initial = id?.let { entities.value[it] }).value
 }
 
 @Composable
-private fun HomeAssistant.entities(ids: List<String>): List<HomeAssistant.Entity?> {
+private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> {
     val flow = remember(this, ids) { entities.map { all -> ids.map { all[it] } }.distinctUntilChanged() }
     return flow.collectAsState(initial = ids.map { entities.value[it] }).value
 }
@@ -185,7 +186,7 @@ private fun ClockTile(tile: Tile) {
 }
 
 @Composable
-private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: HomeAssistant) {
+private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     // Nested layouts can't reach the outer BoxWithConstraints scope; take the tile size along.
     val maxWidth = maxWidth
@@ -202,7 +203,7 @@ private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: HomeAssistant) {
 }
 
 @Composable
-private fun ToggleTile(tile: Tile, ha: HomeAssistant) {
+private fun ToggleTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val id = tile.prop("entity")
     val entity = ha.entity(id)
@@ -236,7 +237,7 @@ private fun ToggleTile(tile: Tile, ha: HomeAssistant) {
  * its value in the header; several get a legend with a colour, label and current value each.
  */
 @Composable
-private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: HomeAssistant) {
+private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val maxWidth = maxWidth
     val maxHeight = maxHeight
@@ -250,7 +251,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: HomeAssistant) {
     // Reads come from memory (HistoryStore); re-read on each change of these sensors, and now and
     // then anyway so the time window keeps sliding.
     LaunchedEffect(ids, hours, connected, current) {
-        while (connected) {
+        while (ha.historyAvailable(ids)) {
             runCatching { history = ha.history(ids, hours) }
             delay(5.minutes)
         }
@@ -280,7 +281,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: HomeAssistant) {
         }
         if (drawn.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(if (connected) "No history" else "Waiting for Home Assistant", color = theme.muted)
+                Text(if (ha.historyAvailable(ids)) "No history yet" else "Waiting for Home Assistant", color = theme.muted)
             }
             return@Column
         }
@@ -347,7 +348,7 @@ private val SERIES_COLORS = listOf(
 )
 
 @Composable
-private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: HomeAssistant) {
+private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val maxWidth = maxWidth
     val maxHeight = maxHeight
@@ -396,7 +397,7 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: HomeAssistant) {
 }
 
 @Composable
-private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: HomeAssistant) {
+private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val maxWidth = maxWidth
     val maxHeight = maxHeight

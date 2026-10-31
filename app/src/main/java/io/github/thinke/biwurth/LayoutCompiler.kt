@@ -26,7 +26,9 @@ class LayoutCompiler(private val app: PanelApp) {
     suspend fun compile(layout: Layout): Report {
         val started = System.currentTimeMillis()
         val warnings = mutableListOf<String>()
-        val entities = app.ha.entities.value
+        val entities = app.hub.entities.value
+        // Own entities may not have a value yet; check them against the source settings instead.
+        val ownIds = app.config.sources.value.flatMap { source -> source.fields.map { "src.${source.id}.${source.fieldId(it)}" } }.toSet()
         val connected = app.ha.connected.value
         if (!connected) warnings += "Home Assistant isn't connected, so entities weren't checked or preloaded."
 
@@ -44,8 +46,11 @@ class LayoutCompiler(private val app: PanelApp) {
             for (tile in page.tiles) {
                 val ids = entityIds(tile)
                 if (tile.type in ENTITY_TYPES && ids.isEmpty()) warnings += "${page.name}: ${label(tile)} has no entity."
+                for (id in ids.filter { it.startsWith("src.") }) {
+                    if (id !in ownIds && !id.endsWith("_ms")) warnings += "${page.name}: ${label(tile)}: $id isn't a field of any source."
+                }
                 if (!connected) continue
-                for (id in ids) {
+                for (id in ids.filterNot { it.startsWith("src.") }) {
                     val entity = entities[id]
                     when {
                         entity == null -> warnings += "${page.name}: ${label(tile)}: $id doesn't exist in Home Assistant."
@@ -77,7 +82,11 @@ class LayoutCompiler(private val app: PanelApp) {
         val ha = app.ha
         val ids = entityIds(tile)
         return when (tile.type) {
-            "graph" -> if (connected && ids.isNotEmpty()) suspend { ha.history(ids, tile.intProp("hours", 24).coerceIn(1, 24 * 14)) } else null
+            "graph" -> if (ids.isNotEmpty() && app.hub.historyAvailable(ids)) {
+                suspend { app.hub.history(ids, tile.intProp("hours", 24).coerceIn(1, 24 * 14)) }
+            } else {
+                null
+            }
             "weather" -> if (connected && ids.isNotEmpty()) suspend { ha.forecast(ids.first()) } else null
             "calendar" -> if (connected && ids.isNotEmpty()) suspend { ha.calendar(ids.joinToString(","), tile.intProp("days", 7).coerceIn(1, 60)) } else null
             "camera" -> {

@@ -12,6 +12,8 @@ Android 16, 4 GB RAM); any Android 11+ tablet should do.
   (fill, fit, stretch, tile, centre, dimmed), and tiles can be see-through.
 - **Website** on the tablet (`http://<tablet>:2323`): drag-and-drop layout editor, pages,
   orientation, grid and theme, plus Home Assistant, MQTT and screen settings.
+- **Own data sources**, with or without Home Assistant: HTTP/JSON APIs, MQTT topics, status
+  checks and Modbus TCP, as entities every tile can show, with history kept on the tablet.
 - **MQTT device**: the tablet appears in Home Assistant with a screen switch, brightness,
   sleep timeout and page select, and battery, charging, last touch, Wi-Fi and IP sensors.
 
@@ -48,6 +50,39 @@ fine to bookmark on your own devices.
   on the tablet only and never sent back to the browser.
 - **MQTT**: broker host, port, user, password, TLS and the device name in Home Assistant.
 - **Screen**: sleep timeout, sleep mode, brightness, wake/sleep now.
+
+## Data sources
+
+Website → **Sources**. Home Assistant is one of them (on/off; its URL and token are on the Home
+Assistant tab); the others can be added as many times as needed, each switched on or off. Every
+field becomes an entity `src.<source>.<field>` (Home Assistant ids have one dot, these two),
+which any tile can show. Numeric values are kept on the tablet for two weeks, so graphs work
+without Home Assistant and survive restarts.
+
+| Source | Settings | Each field |
+|---|---|---|
+| HTTP / JSON | URL, interval, headers (`Name: value` per line, e.g. API keys) | a JSON path: `current.temperature_2m`, `data[0].value`; empty = the whole reply |
+| MQTT topics | the broker from the MQTT tab | a topic and optionally a JSON path; a command topic with on/off payloads makes it a button |
+| Status checks | interval | an `http(s)://` URL (up below status 400) or `host:port` (TCP); also `<field>_ms` |
+| Modbus TCP | host, port, unit id, interval | holding/input register (int16, uint16, int32, uint32, float32, word order, scale) or coil/discrete input; a coil is a button that switches it |
+
+Backups include the sources; HTTP headers only with "include secrets", as they often hold keys.
+
+## Planned
+
+**CAN bus.** The tablet's kernel has CAN networking (`CAN_RAW`, `CAN_BCM`) but no CAN
+interfaces or USB adapter drivers, and bringing one up needs root, so SocketCAN can't be used
+on the tablet itself. The routes that work without root:
+
+- a USB CAN adapter driven by biwurth in user space over Android's USB host API (the tablet has
+  it): slcan/Lawicel adapters (CANable with slcan firmware) and candleLight/gs_usb (CANable 2,
+  CANtact), with an OTG cable that also charges the tablet;
+- SocketCAN over the network from a Linux machine or Raspberry Pi running `socketcand` or
+  `cannelloni`;
+- a CAN → MQTT bridge (e.g. an ESP32), read with an MQTT source.
+
+Frames would be decoded by simple signal definitions (id, start bit, length, byte order, scale,
+offset, unit) or an uploaded DBC file, and buttons could send frames.
 
 ## Releases and updates
 

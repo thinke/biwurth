@@ -12,6 +12,7 @@ import android.provider.Settings
 import io.github.thinke.biwurth.config.BackgroundStore
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.ha.HomeAssistant
+import io.github.thinke.biwurth.sources.Sources
 import io.github.thinke.biwurth.update.Updater
 
 class PanelApp : Application() {
@@ -22,6 +23,10 @@ class PanelApp : Application() {
     lateinit var backgrounds: BackgroundStore
         private set
     lateinit var ha: HomeAssistant
+        private set
+    lateinit var sources: Sources
+        private set
+    lateinit var hub: DataHub
         private set
     lateinit var screen: ScreenController
         private set
@@ -36,6 +41,8 @@ class PanelApp : Application() {
         config = ConfigStore(this)
         backgrounds = BackgroundStore(this)
         ha = HomeAssistant(config).also { it.start() }
+        sources = Sources(config, filesDir).also { it.start() }
+        hub = DataHub(ha, sources)
         screen = ScreenController(this, prefs)
         updater = Updater(this, prefs)
         mqtt = MqttDevice(this).also { it.start() }

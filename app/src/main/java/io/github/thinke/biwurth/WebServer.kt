@@ -9,6 +9,7 @@ import io.github.thinke.biwurth.config.CameraSettings
 import io.github.thinke.biwurth.config.HaSettings
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.MqttSettings
+import io.github.thinke.biwurth.config.SourceConfig
 import io.github.thinke.biwurth.update.UpdateState
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -161,7 +162,8 @@ class WebServer(private val app: PanelApp) {
                 }
                 // An empty token keeps the saved one, so the website never needs to see it.
                 val token = body.optString("token").trim().ifEmpty { app.config.ha.value.token }
-                app.config.saveHa(HaSettings(url, token))
+                val enabled = if (body.has("enabled")) body.getBoolean("enabled") else app.config.ha.value.enabled
+                app.config.saveHa(HaSettings(url, token, enabled))
                 json(200, config())
             }
             "PUT /api/mqtt" -> {
@@ -215,6 +217,16 @@ class WebServer(private val app: PanelApp) {
                 val name = runCatching { app.backgrounds.save(request.bytes) }.getOrElse { throw BadRequest(it.message ?: "Bad picture") }
                 json(200, JSONObject().put("image", name))
             }
+            "GET /api/sources" -> json(200, sourcesJson())
+            "PUT /api/ha/enabled" -> {
+                val ha = app.config.ha.value
+                app.config.saveHa(ha.copy(enabled = JSONObject(request.body).getBoolean("enabled")))
+                json(200, sourcesJson())
+            }
+            "PUT /api/sources" -> {
+                app.config.saveSources(SourceConfig.listFromJson(JSONArray(request.body)))
+                json(200, sourcesJson())
+            }
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
             "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))
             "GET /api/cameras" -> json(200, go2rtcStreams())
@@ -250,15 +262,9 @@ class WebServer(private val app: PanelApp) {
         return JSONObject()
             .put("version", BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (debug)" else "")
             .put("layout", app.config.layout.value.toJson())
-            .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()))
+            .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()).put("enabled", ha.enabled))
             .put("mqtt", mqtt.toJson().put("password", "").put("passwordSet", mqtt.password.isNotEmpty()))
             .put("cameras", app.config.cameras.value.toJson())
-            .apply {
-                val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
-                if (image != null) {
-                    put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
-                }
-            }
             .put(
                 "screen",
                 JSONObject()
@@ -282,9 +288,10 @@ class WebServer(private val app: PanelApp) {
         .put("ha", app.ha.status.value)
         .put("mqtt", app.mqtt.status.value)
         .put("entities", app.ha.entities.value.size)
+        .put("ownEntities", app.sources.entities.value.size)
 
     private fun entities(): JSONArray = JSONArray(
-        app.ha.entities.value.values.sortedBy { it.id }.map {
+        app.hub.entities.value.values.sortedBy { it.id }.map {
             JSONObject().put("id", it.id).put("name", it.name).put("state", it.state).put("unit", it.unit)
         },
     )
@@ -301,9 +308,37 @@ class WebServer(private val app: PanelApp) {
             .put("version", 1)
             .put("created", java.time.Instant.now().toString())
             .put("layout", app.config.layout.value.toJson())
-            .put("ha", JSONObject().put("url", ha.url).apply { if (includeSecrets) put("token", ha.token) })
+            .put("ha", JSONObject().put("url", ha.url).put("enabled", ha.enabled).apply { if (includeSecrets) put("token", ha.token) })
             .put("mqtt", mqtt.toJson().apply { if (!includeSecrets) remove("password") })
             .put("cameras", app.config.cameras.value.toJson())
+            .put(
+                "sources",
+                // HTTP headers carry API keys: secrets, like the token.
+                JSONArray(
+                    app.config.sources.value.map { source ->
+                        source.toJson().apply {
+                            if (!includeSecrets) getJSONObject("settings").remove("headers")
+                        }
+                    },
+                ),
+            )
+            .apply {
+                val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
+                if (image != null) {
+                    put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
+                }
+            }
+            .put(
+                "sources",
+                // HTTP headers carry API keys: secrets, like the token.
+                JSONArray(
+                    app.config.sources.value.map { source ->
+                        source.toJson().apply {
+                            if (!includeSecrets) getJSONObject("settings").remove("headers")
+                        }
+                    },
+                ),
+            )
             .apply {
                 val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
                 if (image != null) {
@@ -327,13 +362,23 @@ class WebServer(private val app: PanelApp) {
         var report: LayoutCompiler.Report? = null
         backup.optJSONObject("ha")?.let { ha ->
             val token = ha.optString("token").ifEmpty { app.config.ha.value.token }
-            app.config.saveHa(HaSettings(ha.optString("url").trim(), token))
+            app.config.saveHa(HaSettings(ha.optString("url").trim(), token, ha.optBoolean("enabled", true)))
         }
         backup.optJSONObject("mqtt")?.let { mqtt ->
             if (mqtt.optString("password").isEmpty()) mqtt.put("password", app.config.mqtt.value.password)
             app.config.saveMqtt(MqttSettings.fromJson(mqtt))
         }
         backup.optJSONObject("cameras")?.let { app.config.saveCameras(CameraSettings.fromJson(it)) }
+        backup.optJSONArray("sources")?.let { array ->
+            // Headers left out of a backup keep the ones this panel has.
+            val current = app.config.sources.value.associateBy { it.id }
+            val restored = SourceConfig.listFromJson(array).map { source ->
+                val headers = current[source.id]?.settings?.optString("headers")
+                if (!source.settings.has("headers") && !headers.isNullOrEmpty()) source.settings.put("headers", headers)
+                source
+            }
+            app.config.saveSources(restored)
+        }
         backup.optJSONObject("screen")?.let { screen ->
             if (screen.has("idleSeconds")) app.prefs.idleSeconds = screen.getInt("idleSeconds").coerceIn(0, 86_400)
             runCatching { SleepMode.valueOf(screen.getString("sleepMode")) }.onSuccess { app.prefs.sleepMode = it }
@@ -354,6 +399,21 @@ class WebServer(private val app: PanelApp) {
             app.config.saveLayout(layout)
         }
         return config().apply { report?.let { put("report", it.toJson()) } }
+    }
+
+    // Home Assistant (the one connection) and each source: settings, the entity ids its fields
+    // become, and how it's doing.
+    private fun sourcesJson(): JSONObject {
+        val status = app.sources.status.value
+        val ha = app.config.ha.value
+        val sources = app.config.sources.value.map { source ->
+            source.toJson()
+                .put("status", status[source.id] ?: if (source.enabled) "Starting…" else "Off")
+                .put("entities", JSONArray(source.fields.map { "src.${source.id}.${source.fieldId(it)}" }))
+        }
+        return JSONObject()
+            .put("ha", JSONObject().put("enabled", ha.enabled).put("configured", ha.configured).put("status", app.ha.status.value))
+            .put("sources", JSONArray(sources))
     }
 
     // The stream names go2rtc knows, for the camera picker; empty without go2rtc.

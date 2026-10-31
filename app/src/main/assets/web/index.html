@@ -37,6 +37,7 @@
         <button data-tab="layout">Layout</button>
         <button data-tab="ha">Home Assistant</button>
         <button data-tab="mqtt">MQTT</button>
+        <button data-tab="sources">Sources</button>
         <button data-tab="cameras">Cameras</button>
         <button data-tab="screen">Screen</button>
         <button data-tab="backup">Backup</button>
@@ -178,6 +179,23 @@
         <button class="primary">Save</button>
         <p id="mqttStatus" class="muted"></p>
       </form>
+
+      <div id="tab-sources" class="tab" hidden>
+        <h2>Data sources</h2>
+        <p class="muted">biwurth's own data, without Home Assistant. Each field becomes an entity
+          <code>src.&lt;source&gt;.&lt;field&gt;</code> that any tile can show; numbers are kept for graphs.</p>
+        <div id="sourceList"></div>
+        <div class="row">
+          <select id="sourceType">
+            <option value="http">HTTP / JSON</option>
+            <option value="mqtt">MQTT topics</option>
+            <option value="status">Status checks</option>
+            <option value="modbus">Modbus TCP</option>
+          </select>
+          <button type="button" id="sourceAdd">Add source</button>
+        </div>
+        <button type="button" id="sourcesSave" class="primary">Save sources</button>
+      </div>
 
       <form id="tab-cameras" class="tab" hidden>
         <h2>Cameras</h2>

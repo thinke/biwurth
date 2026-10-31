@@ -70,6 +70,10 @@ class HomeAssistant(private val config: ConfigStore) {
         cache.clear()
         _entities.value = emptyMap()
         _connected.value = false
+        if (!settings.enabled) {
+            _status.value = "Off"
+            return
+        }
         if (!settings.configured) {
             _status.value = "Not configured"
             return
@@ -247,19 +251,6 @@ class HomeAssistant(private val config: ConfigStore) {
     private fun time(state: JSONObject): Long? =
         state.optString("last_changed").ifBlank { state.optString("last_updated") }.ifBlank { null }
             ?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
-
-    // A day of a busy power sensor is thousands of points for a tile a few hundred pixels wide.
-    // Keep each time slot's lowest and highest point, in time order, so spikes survive.
-    private fun thin(points: List<Pair<Long, Float>>, start: Long, end: Long, slots: Int = 400): List<Pair<Long, Float>> {
-        if (points.size <= slots * 2) return points
-        val slotLength = (end - start).toDouble() / slots
-        return points.groupBy { ((it.first - start) / slotLength).toInt().coerceIn(0, slots - 1) }
-            .toSortedMap().values.flatMap { slot ->
-                val low = slot.minBy { it.second }
-                val high = slot.maxBy { it.second }
-                if (low === high) listOf(low) else listOf(low, high).sortedBy { it.first }
-            }
-    }
 
     fun cachedCalendar(entityIds: String, days: Int): List<CalendarEvent>? = peek("calendar:$entityIds@$days")
 

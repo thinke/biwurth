@@ -41,12 +41,15 @@ const board = $('#board');
 
 let key = localStorage.getItem('biwurthKey') || '';
 
-// A bookmarkable address: http://<tablet>:2323/#key=<key> logs in and drops the key from the address bar.
-if (location.hash.startsWith('#key=')) {
-  key = decodeURIComponent(location.hash.slice(5));
+// A bookmarkable address: http://<tablet>:2323/#key=<key>&tab=<tab> logs in, opens that tab and
+// drops the key from the address bar.
+const hashParams = new URLSearchParams(location.hash.slice(1));
+if (hashParams.get('key')) {
+  key = hashParams.get('key');
   localStorage.setItem('biwurthKey', key);
   history.replaceState(null, '', location.pathname);
 }
+const startTab = hashParams.get('tab');
 let config = null;   // last /api/config
 let layout = null;   // the layout being edited
 let pageIndex = 0;
@@ -113,6 +116,7 @@ async function refreshStatus() {
     const s = await api('GET', '/api/status');
     $('#status').replaceChildren(
       chip('Screen', s.screen), ' · ', chip('Home Assistant', s.ha + (s.entities ? ` (${s.entities} entities)` : '')), ' · ', chip('MQTT', s.mqtt),
+      ...(s.ownEntities ? [' · ', chip('Sources', `${s.ownEntities} values`)] : []),
     );
     $('#haStatus').textContent = `Status: ${s.ha}`;
     $('#mqttStatus').textContent = `Status: ${s.mqtt}`;
@@ -872,12 +876,212 @@ $('#provQrBtn').addEventListener('click', async () => {
   }
 });
 
+// ---- Data sources ---------------------------------------------------------------------------------
+
+// Per source type: its settings, and the columns of its field rows.
+const SOURCE_TYPES = {
+  http: {
+    label: 'HTTP / JSON',
+    settings: [['url', 'URL', 'https://api.example.com/data'], ['interval', 'Every (s)', '60'], ['headers', 'Headers (Name: value per line)', 'Authorization: Bearer …', 'textarea']],
+    columns: [['name', 'Name'], ['path', 'JSON path', 'current.temperature_2m'], ['unit', 'Unit']],
+  },
+  mqtt: {
+    label: 'MQTT topics (broker from the MQTT tab)',
+    settings: [],
+    columns: [['name', 'Name'], ['topic', 'Topic', 'zigbee2mqtt/sauna'], ['path', 'JSON path', 'temperature'], ['unit', 'Unit'],
+      ['commandTopic', 'Command topic (button)'], ['payloadOn', 'On', 'ON'], ['payloadOff', 'Off', 'OFF']],
+  },
+  status: {
+    label: 'Status checks',
+    settings: [['interval', 'Every (s)', '60']],
+    columns: [['name', 'Name'], ['target', 'URL or host:port', 'http://nas.local or 192.168.1.1:22']],
+  },
+  modbus: {
+    label: 'Modbus TCP',
+    settings: [['host', 'Host', '192.168.1.50'], ['port', 'Port', '502'], ['unit', 'Unit id', '1'], ['interval', 'Every (s)', '10']],
+    columns: [['name', 'Name'], ['kind', 'Kind', '', ['holding', 'input', 'coil', 'discrete']], ['address', 'Address', '0'],
+      ['type', 'Type', '', ['int16', 'uint16', 'int32', 'uint32', 'float32']], ['order', 'Words', '', ['big', 'little']], ['scale', 'Scale', '1'], ['unit', 'Unit']],
+  },
+};
+
+let sources = [];
+const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+let haSource = null; // Home Assistant: always one, first in the list, settings on its own tab
+
+async function loadSources() {
+  try {
+    const data = await api('GET', '/api/sources');
+    sources = data.sources;
+    haSource = data.ha;
+    renderSources();
+  } catch (e) {
+    $('#sourceList').textContent = e.message;
+  }
+}
+
+function renderSources() {
+  $('#sourceList').replaceChildren(...(haSource ? [haCard()] : []), ...sources.map((source, index) => sourceCard(source, index)));
+}
+
+function haCard() {
+  const card = document.createElement('div');
+  card.className = 'source';
+  const head = document.createElement('div');
+  head.className = 'head';
+  const enabled = document.createElement('input');
+  enabled.type = 'checkbox';
+  enabled.checked = haSource.enabled;
+  enabled.title = 'On';
+  enabled.addEventListener('change', async () => {
+    const data = await api('PUT', '/api/ha/enabled', { enabled: enabled.checked });
+    haSource = data.ha;
+    renderSources();
+    setTimeout(() => { loadSources(); refreshEntities(); refreshStatus(); }, 3000);
+  });
+  const name = document.createElement('b');
+  name.textContent = 'Home Assistant';
+  name.style.flex = '1';
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.textContent = 'Settings';
+  open.addEventListener('click', () => showTab('ha'));
+  head.append(enabled, name, open);
+  const status = document.createElement('div');
+  status.className = 'status';
+  status.textContent = haSource.enabled ? haSource.status : 'Off: biwurth doesn\'t connect to Home Assistant';
+  card.append(head, status);
+  return card;
+}
+
+function input(value, placeholder, onChange, options) {
+  let el;
+  if (options) {
+    el = select(options.map((o) => [o, o]), value || options[0]);
+  } else {
+    el = document.createElement('input');
+    el.value = value ?? '';
+    el.placeholder = placeholder || '';
+  }
+  el.addEventListener(options ? 'change' : 'input', () => onChange(el.value));
+  return el;
+}
+
+function sourceCard(source, index) {
+  const type = SOURCE_TYPES[source.type];
+  const card = document.createElement('div');
+  card.className = 'source';
+
+  const head = document.createElement('div');
+  head.className = 'head';
+  const name = input(source.name, 'Name', (v) => { source.name = v; });
+  name.className = 'name';
+  const enabled = document.createElement('input');
+  enabled.type = 'checkbox';
+  enabled.checked = source.enabled !== false;
+  enabled.title = 'On';
+  enabled.addEventListener('change', () => { source.enabled = enabled.checked; });
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.textContent = '×';
+  remove.title = 'Remove source';
+  remove.addEventListener('click', () => { sources.splice(index, 1); renderSources(); });
+  head.append(enabled, name, remove);
+
+  const status = document.createElement('div');
+  status.className = 'status';
+  status.textContent = `${type.label} · ${source.status || 'not saved yet'}`;
+  card.append(head, status);
+
+  source.settings = source.settings || {};
+  for (const [key, label, placeholder, kind] of type.settings) {
+    let el;
+    if (kind === 'textarea') {
+      el = document.createElement('textarea');
+      el.rows = 2;
+      el.value = source.settings[key] ?? '';
+      el.placeholder = placeholder;
+      el.addEventListener('input', () => { source.settings[key] = el.value; });
+    } else {
+      el = input(source.settings[key], placeholder, (v) => { source.settings[key] = v; });
+    }
+    card.append(labelled(label, el));
+  }
+
+  const table = document.createElement('table');
+  const header = document.createElement('tr');
+  for (const [, label] of type.columns) {
+    const th = document.createElement('td');
+    th.className = 'muted';
+    th.textContent = label;
+    header.append(th);
+  }
+  header.append(document.createElement('td'));
+  table.append(header);
+  source.fields = source.fields || [];
+  source.fields.forEach((field, row) => {
+    const tr = document.createElement('tr');
+    for (const [key, , placeholder, options] of type.columns) {
+      const td = document.createElement('td');
+      td.append(input(field[key], placeholder, (v) => { field[key] = v; updateIds(); }, options));
+      if (options && !field[key]) field[key] = options[0];
+      tr.append(td);
+    }
+    const td = document.createElement('td');
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '×';
+    del.addEventListener('click', () => { source.fields.splice(row, 1); renderSources(); });
+    td.append(del);
+    tr.append(td);
+    table.append(tr);
+  });
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.textContent = '+ Field';
+  add.addEventListener('click', () => { source.fields.push({}); renderSources(); });
+
+  const ids = document.createElement('div');
+  ids.className = 'ids';
+  const updateIds = () => {
+    const id = slug(source.id || source.name || '');
+    ids.textContent = source.fields.filter((f) => slug(f.name || '')).map((f) => `src.${id}.${slug(f.name)}`).join('  ');
+  };
+  updateIds();
+  card.append(table, add, ids);
+  return card;
+}
+
+$('#sourceAdd').addEventListener('click', () => {
+  const type = $('#sourceType').value;
+  sources.push({ type, name: `${SOURCE_TYPES[type].label.split(' ')[0]} ${sources.length + 1}`, enabled: true, settings: {}, fields: [{}] });
+  renderSources();
+});
+
+$('#sourcesSave').addEventListener('click', async () => {
+  // Numbers where the tablet expects numbers.
+  for (const s of sources) {
+    for (const key of ['interval', 'port', 'unit']) if (s.settings[key] !== undefined && s.settings[key] !== '') s.settings[key] = Number(s.settings[key]);
+    for (const f of s.fields) for (const key of ['address', 'scale']) if (f[key] !== undefined && f[key] !== '') f[key] = Number(f[key]);
+    s.id = slug(s.id || s.name);
+  }
+  try {
+    sources = (await api('PUT', '/api/sources', sources)).sources;
+    renderSources();
+    setTimeout(() => { loadSources(); refreshEntities(); }, 3000);
+  } catch (e) {
+    alert(`Not saved: ${e.message}`);
+  }
+});
+
 // ---- Settings tabs ------------------------------------------------------------------------------
 
 function showTab(name) {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.id !== `tab-${name}`; });
   if (name === 'updates') refreshUpdate();
+  if (name === 'sources') loadSources();
+  document.body.classList.toggle('wide-aside', name === 'sources');
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
@@ -998,4 +1202,4 @@ $('#sleepBtn').addEventListener('click', () => api('POST', '/api/sleep').then(re
 const signedIn = () => $('#login').hidden;
 setInterval(() => signedIn() && refreshStatus(), 5000);
 setInterval(() => signedIn() && refreshEntities(), 30000);
-if (key) load().catch(() => {}); else showLogin();
+if (key) load().then(() => startTab && showTab(startTab)).catch(() => {}); else showLogin();
