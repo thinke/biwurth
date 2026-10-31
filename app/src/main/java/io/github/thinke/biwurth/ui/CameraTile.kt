@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -54,6 +55,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.ConcurrentHashMap
+import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
 /**
@@ -74,7 +76,17 @@ fun CameraTile(tile: Tile) {
     val snapshot = tile.prop("snapshot") ?: cameras.snapshotUrl(camera)
     val fit = tile.prop("fit") == "contain"
     val awake = screen == ScreenState.AWAKE || (cameras.keepLiveAsleep && screen == ScreenState.DIMMED)
-    val live = stream != null && awake && hasLiveSlot(tile.id, cameras.maxLive)
+    val slot = hasLiveSlot(tile.id, cameras.maxLive)
+    val live = stream != null && awake && slot
+    val label = tile.prop("name") ?: camera
+    DisposableEffect(tile.id) { onDispose { CameraStatus.entries.remove(tile.id) } }
+    LaunchedEffect(stream, awake, slot) {
+        when {
+            stream == null -> CameraStatus.set(tile.id, label, null, "No stream: set the go2rtc address, or use an rtsp:// URL")
+            !awake -> CameraStatus.set(tile.id, label, stream, "Paused while the panel sleeps")
+            !slot -> CameraStatus.set(tile.id, label, stream, "Snapshot only: over the live stream limit")
+        }
+    }
     var showingVideo by remember(stream) { mutableStateOf(false) }
     var fullScreen by remember { mutableStateOf(false) }
 
@@ -82,7 +94,7 @@ fun CameraTile(tile: Tile) {
         Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black)
             .clickable(enabled = fullStream != null) { fullScreen = true },
     ) {
-        if (live) Video(stream!!, fit) { showingVideo = it }
+        if (live) Video(stream!!, fit, status = { CameraStatus.set(tile.id, label, stream, it) }) { showingVideo = it }
         // Snapshots refresh slowly when the tile isn't live, and stop once the video shows.
         if (!live || !showingVideo) Snapshot(snapshot, fit, refreshMs = if (live) 0L else 10_000L)
         when {
@@ -113,6 +125,27 @@ private fun Hint(text: String) = Box(Modifier.fillMaxSize().padding(12.dp), cont
     Text(text, color = Color(0xFF9A9A9A), fontSize = 14.sp)
 }
 
+// ---- Status ---------------------------------------------------------------------------------
+
+/**
+ * What each camera tile is doing, for the website's Cameras tab: connecting, live since when,
+ * failing and retrying, snapshot only, or paused. Errors and retries are also logged.
+ */
+object CameraStatus {
+    class Entry(val name: String, val url: String, val text: String)
+
+    val entries = ConcurrentHashMap<String, Entry>()
+
+    fun set(id: String, name: String, url: String?, text: String) {
+        entries[id] = Entry(name, url?.let { redact(it) }.orEmpty(), text)
+    }
+
+    // Replaces the "user:password" in an rtsp:// address with stars: the website and log never show it.
+    fun redact(url: String) = url.replace(Regex("://[^/@]+@"), "://***@")
+}
+
+private const val TAG = "biwurth.Camera"
+
 // ---- Live limit ------------------------------------------------------------------------------
 
 // Tiles in the order they asked; the first maxLive stream, the rest show snapshots.
@@ -136,7 +169,7 @@ private fun hasLiveSlot(id: String, max: Int): Boolean {
  */
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
-private fun Video(url: String, fit: Boolean, onShowing: (Boolean) -> Unit) {
+private fun Video(url: String, fit: Boolean, status: (String) -> Unit = {}, onShowing: (Boolean) -> Unit) {
     val context = LocalContext.current
     val player = remember(url) { livePlayer(context, url) }
     var failures by remember(url) { mutableIntStateOf(0) }
@@ -144,16 +177,24 @@ private fun Video(url: String, fit: Boolean, onShowing: (Boolean) -> Unit) {
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onRenderedFirstFrame() {
+                if (failures > 0) Log.i(TAG, "${CameraStatus.redact(url)}: live again")
+                status("Live since ${LocalTime.now().withNano(0)}")
                 failures = 0
                 onShowing(true)
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                val reason = error.cause?.message ?: error.errorCodeName
+                val wait = retryDelay(failures + 1) / 1000
+                // An error, not a warning: some tablets (this one: log.tag=E) keep only errors.
+                Log.e(TAG, "${CameraStatus.redact(url)}: ${error.errorCodeName} ($reason), retrying in $wait s")
+                status("Error: $reason. Retrying in $wait s")
                 onShowing(false)
                 failures++
             }
         }
         player.addListener(listener)
+        status("Connecting…")
         player.prepare()
         player.playWhenReady = true
         onDispose {
@@ -164,7 +205,8 @@ private fun Video(url: String, fit: Boolean, onShowing: (Boolean) -> Unit) {
     }
     LaunchedEffect(player, failures) {
         if (failures == 0) return@LaunchedEffect
-        delay((1_000L shl failures.coerceAtMost(5)).coerceAtMost(30_000L))
+        delay(retryDelay(failures))
+        status("Connecting again…")
         player.prepare()
     }
 
@@ -183,6 +225,9 @@ private fun Video(url: String, fit: Boolean, onShowing: (Boolean) -> Unit) {
         modifier = Modifier.fillMaxSize(),
     )
 }
+
+// 2, 4, 8, 16, 30, 30 … seconds: soon after a blip, without hammering a camera that's gone.
+private fun retryDelay(failures: Int) = (1_000L shl failures.coerceIn(1, 5)).coerceAtMost(30_000L)
 
 // A live view, not a film: start on the first frames and keep little buffered.
 @OptIn(UnstableApi::class)

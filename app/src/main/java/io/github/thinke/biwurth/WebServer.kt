@@ -10,6 +10,7 @@ import io.github.thinke.biwurth.config.HaSettings
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.MqttSettings
 import io.github.thinke.biwurth.config.SourceConfig
+import io.github.thinke.biwurth.ui.CameraStatus
 import io.github.thinke.biwurth.update.UpdateState
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
@@ -230,6 +231,14 @@ class WebServer(private val app: PanelApp) {
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
             "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))
             "GET /api/cameras" -> json(200, go2rtcStreams())
+            "GET /api/cameras/status" -> json(
+                200,
+                JSONArray(
+                    CameraStatus.entries.values.sortedBy { it.name }.map {
+                        JSONObject().put("name", it.name).put("url", it.url).put("status", it.text)
+                    },
+                ),
+            )
             "PUT /api/cameras" -> {
                 app.config.saveCameras(CameraSettings.fromJson(JSONObject(request.body)))
                 json(200, config())

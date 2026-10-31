@@ -1081,6 +1081,7 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.id !== `tab-${name}`; });
   if (name === 'updates') refreshUpdate();
   if (name === 'sources') loadSources();
+  if (name === 'cameras') loadCameraTiles();
   document.body.classList.toggle('wide-aside', name === 'sources');
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -1163,6 +1164,33 @@ async function loadCameraList() {
   } catch (e) {
     $('#cameraStatus').textContent = e.message;
   }
+}
+
+// Each camera tile's state (live, retrying, snapshot only…), refreshed while the tab is open.
+async function loadCameraTiles() {
+  try {
+    const cameras = await api('GET', '/api/cameras/status');
+    const box = $('#cameraTiles');
+    if (!cameras.length) {
+      box.textContent = 'No camera tiles.';
+    } else {
+      box.replaceChildren(...cameras.map((c) => {
+        const row = document.createElement('div');
+        row.className = 'source';
+        const name = document.createElement('b');
+        name.textContent = c.name;
+        const status = document.createElement('div');
+        status.textContent = c.status;
+        status.style.color = c.status.startsWith('Error') ? 'var(--danger)' : 'var(--text)';
+        const url = document.createElement('div');
+        url.className = 'ids';
+        url.textContent = c.url;
+        row.append(name, status, url);
+        return row;
+      }));
+    }
+  } catch (e) { /* the status line shows connection problems */ }
+  if (!$('#tab-cameras').hidden) setTimeout(loadCameraTiles, 3000);
 }
 
 $('#tab-cameras').addEventListener('submit', (event) => {
