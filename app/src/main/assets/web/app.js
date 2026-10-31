@@ -87,6 +87,7 @@ $('#login form').addEventListener('submit', (event) => {
 async function load() {
   config = await api('GET', '/api/config');
   layout = structuredClone(config.layout);
+  $('#version').textContent = config.version;
   pageIndex = Math.min(pageIndex, layout.pages.length - 1);
   setDirty(false);
   fillSettings();

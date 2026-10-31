@@ -220,6 +220,7 @@ class WebServer(private val app: PanelApp) {
         val ha = app.config.ha.value
         val mqtt = app.config.mqtt.value
         return JSONObject()
+            .put("version", BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (debug)" else "")
             .put("layout", app.config.layout.value.toJson())
             .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()))
             .put("mqtt", mqtt.toJson().put("password", "").put("passwordSet", mqtt.password.isNotEmpty()))

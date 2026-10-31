@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import io.github.thinke.biwurth.BuildConfig
 import io.github.thinke.biwurth.Kiosk
 import io.github.thinke.biwurth.SleepMode
 import io.github.thinke.biwurth.WebServer
@@ -54,7 +55,14 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
             Modifier.verticalScroll(rememberScrollState()).padding(32.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text("Settings", style = MaterialTheme.typography.headlineMedium)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Settings", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    "biwurth ${BuildConfig.VERSION_NAME}${if (BuildConfig.DEBUG) " (debug)" else ""}",
+                    color = Color(0xFF909090),
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
 
             Section("Sleep after") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
