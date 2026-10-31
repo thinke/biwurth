@@ -35,7 +35,6 @@
       <nav id="tabs">
         <button data-tab="tile" class="active">Tile</button>
         <button data-tab="layout">Layout</button>
-        <button data-tab="ha">Home Assistant</button>
         <button data-tab="mqtt">MQTT</button>
         <button data-tab="sources">Sources</button>
         <button data-tab="cameras">Cameras</button>
@@ -152,19 +151,6 @@
           Changing it scales the tiles to the new grid.</p>
       </div>
 
-      <form id="tab-ha" class="tab" hidden>
-        <h2>Home Assistant</h2>
-        <p class="muted">Where the tiles get their data.</p>
-        <label>URL <input id="haUrl" placeholder="http://homeassistant.local:8123" autocomplete="off"></label>
-        <label>Long-lived access token
-          <input id="haToken" type="password" autocomplete="off">
-        </label>
-        <p class="muted">Create one in Home Assistant: your profile → Security → Long-lived access tokens.
-          It is stored on the tablet only and never shown again.</p>
-        <button class="primary">Save</button>
-        <p id="haStatus" class="muted"></p>
-      </form>
-
       <form id="tab-mqtt" class="tab" hidden>
         <h2>MQTT device</h2>
         <p class="muted">Makes the tablet a device in Home Assistant (MQTT discovery): screen switch,
@@ -183,11 +169,14 @@
 
       <div id="tab-sources" class="tab" hidden>
         <h2>Data sources</h2>
-        <p class="muted">biwurth's own data, without Home Assistant. Each field becomes an entity
-          <code>src.&lt;source&gt;.&lt;field&gt;</code> that any tile can show; numbers are kept for graphs.</p>
+        <p class="muted">Where tiles get their data: Home Assistants and biwurth's own sources, as many of
+          each as needed. The primary Home Assistant's entities keep their own ids (<code>sensor.x</code>);
+          another Home Assistant's are <code>src.&lt;source&gt;.sensor.x</code>, and an own source's
+          fields <code>src.&lt;source&gt;.&lt;field&gt;</code>.</p>
         <div id="sourceList"></div>
         <div class="row">
           <select id="sourceType">
+            <option value="homeassistant">Home Assistant</option>
             <option value="http">HTTP / JSON</option>
             <option value="mqtt">MQTT topics</option>
             <option value="status">Status checks</option>
@@ -195,7 +184,6 @@
           </select>
           <button type="button" id="sourceAdd">Add source</button>
         </div>
-        <button type="button" id="sourcesSave" class="primary">Save sources</button>
       </div>
 
       <form id="tab-cameras" class="tab" hidden>
@@ -311,6 +299,11 @@
   <input id="pageFile" type="file" accept=".json,application/json" hidden>
   <input id="backupFile" type="file" accept=".json,application/json" hidden>
   <input id="bgFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+
+  <!-- A source's settings, opened from its row on the Sources tab. -->
+  <div id="sourceModal" class="overlay" hidden>
+    <div id="sourceModalBox" class="modal"></div>
+  </div>
 
   <div id="login" class="overlay" hidden>
     <form>

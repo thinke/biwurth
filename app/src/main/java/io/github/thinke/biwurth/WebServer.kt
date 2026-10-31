@@ -5,7 +5,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Display
 import io.github.thinke.biwurth.config.CameraSettings
-import io.github.thinke.biwurth.config.HaSettings
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.MqttSettings
 import io.github.thinke.biwurth.config.SourceConfig
@@ -161,18 +160,6 @@ class WebServer(private val app: PanelApp) {
                 app.config.saveLayout(layout)
                 json(200, JSONObject().put("layout", layout.toJson()).put("report", report.toJson()))
             }
-            "PUT /api/ha" -> {
-                val body = JSONObject(request.body)
-                val url = body.optString("url").trim()
-                if (url.isNotEmpty() && !url.matches(Regex("^https?://.+", RegexOption.IGNORE_CASE))) {
-                    throw BadRequest("The URL must start with http:// or https://")
-                }
-                // An empty token keeps the saved one, so the website never needs to see it.
-                val token = body.optString("token").trim().ifEmpty { app.config.ha.value.token }
-                val enabled = if (body.has("enabled")) body.getBoolean("enabled") else app.config.ha.value.enabled
-                app.config.saveHa(HaSettings(url, token, enabled))
-                json(200, config())
-            }
             "PUT /api/mqtt" -> {
                 val body = JSONObject(request.body)
                 // An empty password keeps the saved one, like the Home Assistant token.
@@ -231,13 +218,8 @@ class WebServer(private val app: PanelApp) {
                 json(200, JSONObject().put("cleared", true))
             }
             "GET /api/sources" -> json(200, sourcesJson())
-            "PUT /api/ha/enabled" -> {
-                val ha = app.config.ha.value
-                app.config.saveHa(ha.copy(enabled = JSONObject(request.body).getBoolean("enabled")))
-                json(200, sourcesJson())
-            }
             "PUT /api/sources" -> {
-                app.config.saveSources(SourceConfig.listFromJson(JSONArray(request.body)))
+                app.config.saveSources(keepSecrets(SourceConfig.listFromJson(JSONArray(request.body))))
                 json(200, sourcesJson())
             }
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
@@ -278,12 +260,10 @@ class WebServer(private val app: PanelApp) {
     }
 
     private fun config(): JSONObject {
-        val ha = app.config.ha.value
         val mqtt = app.config.mqtt.value
         return JSONObject()
             .put("version", BuildConfig.VERSION_NAME + if (BuildConfig.DEBUG) " (debug)" else "")
             .put("layout", app.config.layout.value.toJson())
-            .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()).put("enabled", ha.enabled))
             .put("mqtt", mqtt.toJson().put("password", "").put("passwordSet", mqtt.password.isNotEmpty()))
             .put("cameras", app.config.cameras.value.toJson())
             .put(
@@ -306,10 +286,30 @@ class WebServer(private val app: PanelApp) {
     private fun status() = JSONObject()
         .put("screen", app.screen.state.value.name.lowercase())
         .put("page", app.screen.page.value)
-        .put("ha", app.ha.status.value)
+        .put("ha", haSummary())
         .put("mqtt", app.mqtt.status.value)
-        .put("entities", app.ha.entities.value.size)
+        .put("entities", app.sources.homeAssistants.value.values.sumOf { it.entities.value.size })
         .put("ownEntities", app.sources.entities.value.size)
+
+    // "Connected" for one, "2 of 3 connected" for several, "None" without any.
+    private fun haSummary(): String {
+        val all = app.config.sources.value.filter { it.isHomeAssistant && it.enabled }
+        if (all.isEmpty()) return "None"
+        val connections = app.sources.homeAssistants.value
+        if (all.size == 1) return connections[all[0].id]?.status?.value ?: "Starting…"
+        return "${all.count { connections[it.id]?.connected?.value == true }} of ${all.size} connected"
+    }
+
+    // Saving sources from the website: a Home Assistant without a token keeps the one it had,
+    // since the website never gets tokens back.
+    private fun keepSecrets(incoming: List<SourceConfig>): List<SourceConfig> {
+        val current = app.config.sources.value.associateBy { it.id }
+        return incoming.onEach { source ->
+            val old = current[source.id]?.settings ?: return@onEach
+            if (source.isHomeAssistant && source.settings.optString("token").isBlank()) source.settings.put("token", old.optString("token"))
+            if (!source.settings.has("headers") && old.has("headers")) source.settings.put("headers", old.optString("headers"))
+        }
+    }
 
     private fun entities(): JSONArray = JSONArray(
         app.hub.entities.value.values.sortedBy { it.id }.map {
@@ -322,14 +322,12 @@ class WebServer(private val app: PanelApp) {
      * only with [includeSecrets]; the website key never, so a backup can't open this panel.
      */
     private fun backup(includeSecrets: Boolean): JSONObject {
-        val ha = app.config.ha.value
         val mqtt = app.config.mqtt.value
         return JSONObject()
             .put("type", "biwurth-backup")
             .put("version", 1)
             .put("created", java.time.Instant.now().toString())
             .put("layout", app.config.layout.value.toJson())
-            .put("ha", JSONObject().put("url", ha.url).put("enabled", ha.enabled).apply { if (includeSecrets) put("token", ha.token) })
             .put("mqtt", mqtt.toJson().apply { if (!includeSecrets) remove("password") })
             .put("cameras", app.config.cameras.value.toJson())
             .put(
@@ -338,7 +336,10 @@ class WebServer(private val app: PanelApp) {
                 JSONArray(
                     app.config.sources.value.map { source ->
                         source.toJson().apply {
-                            if (!includeSecrets) getJSONObject("settings").remove("headers")
+                            if (!includeSecrets) getJSONObject("settings").apply {
+                                remove("headers")
+                                remove("token")
+                            }
                         }
                     },
                 ),
@@ -355,7 +356,10 @@ class WebServer(private val app: PanelApp) {
                 JSONArray(
                     app.config.sources.value.map { source ->
                         source.toJson().apply {
-                            if (!includeSecrets) getJSONObject("settings").remove("headers")
+                            if (!includeSecrets) getJSONObject("settings").apply {
+                                remove("headers")
+                                remove("token")
+                            }
                         }
                     },
                 ),
@@ -381,9 +385,19 @@ class WebServer(private val app: PanelApp) {
         // "panel-backup": files from before the app was named biwurth.
         if (backup.optString("type") !in setOf("biwurth-backup", "panel-backup")) throw BadRequest("Not a biwurth backup file")
         var report: LayoutCompiler.Report? = null
+        // Backups from before several Home Assistants had one under "ha": make it a source.
         backup.optJSONObject("ha")?.let { ha ->
-            val token = ha.optString("token").ifEmpty { app.config.ha.value.token }
-            app.config.saveHa(HaSettings(ha.optString("url").trim(), token, ha.optBoolean("enabled", true)))
+            if (backup.optJSONArray("sources")?.let { a -> (0 until a.length()).any { a.optJSONObject(it)?.optString("type") == "homeassistant" } } != true) {
+                val sources = backup.optJSONArray("sources") ?: JSONArray().also { backup.put("sources", it) }
+                val settings = JSONObject().put("url", ha.optString("url")).put("primary", true)
+                if (ha.optString("token").isNotEmpty()) settings.put("token", ha.optString("token"))
+                val list = JSONArray().put(
+                    JSONObject().put("id", "home_assistant").put("name", "Home Assistant").put("type", "homeassistant")
+                        .put("enabled", ha.optBoolean("enabled", true)).put("settings", settings),
+                )
+                for (i in 0 until sources.length()) list.put(sources.get(i))
+                backup.put("sources", list)
+            }
         }
         backup.optJSONObject("mqtt")?.let { mqtt ->
             if (mqtt.optString("password").isEmpty()) mqtt.put("password", app.config.mqtt.value.password)
@@ -392,13 +406,7 @@ class WebServer(private val app: PanelApp) {
         backup.optJSONObject("cameras")?.let { app.config.saveCameras(CameraSettings.fromJson(it)) }
         backup.optJSONArray("sources")?.let { array ->
             // Headers left out of a backup keep the ones this panel has.
-            val current = app.config.sources.value.associateBy { it.id }
-            val restored = SourceConfig.listFromJson(array).map { source ->
-                val headers = current[source.id]?.settings?.optString("headers")
-                if (!source.settings.has("headers") && !headers.isNullOrEmpty()) source.settings.put("headers", headers)
-                source
-            }
-            app.config.saveSources(restored)
+            app.config.saveSources(keepSecrets(SourceConfig.listFromJson(array)))
         }
         backup.optJSONObject("screen")?.let { screen ->
             if (screen.has("idleSeconds")) app.prefs.idleSeconds = screen.getInt("idleSeconds").coerceIn(0, 86_400)
@@ -426,19 +434,21 @@ class WebServer(private val app: PanelApp) {
     // become, and how it's doing.
     private fun sourcesJson(): JSONObject {
         val status = app.sources.status.value
-        val ha = app.config.ha.value
         val sources = app.config.sources.value.map { source ->
             source.toJson()
                 .put("status", status[source.id] ?: if (source.enabled) "Starting…" else "Off")
                 .put("entities", JSONArray(source.fields.map { "src.${source.id}.${source.fieldId(it)}" }))
+                .put("primary", source.id == app.sources.primaryHa.value)
                 .apply {
                     val (days, bytes) = app.sources.telemetry.usage(source.id)
                     put("telemetryDays", days).put("telemetryBytes", bytes)
+                    // The website never gets a token back, only whether one is set.
+                    val settings = JSONObject(getJSONObject("settings").toString())
+                    if (settings.has("token")) settings.put("tokenSet", settings.optString("token").isNotEmpty()).remove("token")
+                    put("settings", settings)
                 }
         }
-        return JSONObject()
-            .put("ha", JSONObject().put("enabled", ha.enabled).put("configured", ha.configured).put("status", app.ha.status.value))
-            .put("sources", JSONArray(sources))
+        return JSONObject().put("sources", JSONArray(sources))
     }
 
     // The stream names go2rtc knows, for the camera picker; empty without go2rtc.

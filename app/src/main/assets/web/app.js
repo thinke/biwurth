@@ -119,7 +119,6 @@ async function refreshStatus() {
       chip('Screen', s.screen), ' · ', chip('Home Assistant', s.ha + (s.entities ? ` (${s.entities} entities)` : '')), ' · ', chip('MQTT', s.mqtt),
       ...(s.ownEntities ? [' · ', chip('Sources', `${s.ownEntities} values`)] : []),
     );
-    $('#haStatus').textContent = `Status: ${s.ha}`;
     $('#mqttStatus').textContent = `Status: ${s.mqtt}`;
   } catch (e) {
     $('#status').textContent = e.message;
@@ -892,6 +891,12 @@ $('#provQrBtn').addEventListener('click', async () => {
 
 // Per source type: its settings, and the columns of its field rows.
 const SOURCE_TYPES = {
+  homeassistant: {
+    label: 'Home Assistant',
+    settings: [['url', 'URL', 'http://homeassistant.local:8123'], ['token', 'Long-lived access token', '', 'password'],
+      ['primary', "Primary: its entities keep their own ids (sensor.x)", '', 'checkbox']],
+    columns: [],
+  },
   http: {
     label: 'HTTP / JSON',
     settings: [['url', 'URL', 'https://api.example.com/data'], ['interval', 'Every (s)', '60'], ['headers', 'Headers (Name: value per line)', 'Authorization: Bearer …', 'textarea']],
@@ -919,51 +924,127 @@ const SOURCE_TYPES = {
 let sources = [];
 const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
-let haSource = null; // Home Assistant: always one, first in the list, settings on its own tab
-
 async function loadSources() {
   try {
     const data = await api('GET', '/api/sources');
     sources = data.sources;
-    haSource = data.ha;
     renderSources();
   } catch (e) {
     $('#sourceList').textContent = e.message;
   }
+  if (!$('#tab-sources').hidden) setTimeout(() => !$('#tab-sources').hidden && $('#sourceModal').hidden && loadSources(), 5000);
+}
+
+// Numbers where the tablet expects numbers, ids from names.
+function normalized(list) {
+  return list.map((source) => {
+    const s = structuredClone(source);
+    for (const key of ['interval', 'port', 'unit', 'keepDays']) if (s.settings[key] !== undefined && s.settings[key] !== '') s.settings[key] = Number(s.settings[key]);
+    for (const f of s.fields) for (const key of ['address', 'scale']) if (f[key] !== undefined && f[key] !== '') f[key] = Number(f[key]);
+    s.id = slug(s.id || s.name);
+    return s;
+  });
+}
+
+async function saveSources(list) {
+  const data = await api('PUT', '/api/sources', normalized(list));
+  sources = data.sources;
+  renderSources();
+  setTimeout(() => { loadSources(); refreshEntities(); }, 3000);
 }
 
 function renderSources() {
-  $('#sourceList').replaceChildren(...(haSource ? [haCard()] : []), ...sources.map((source, index) => sourceCard(source, index)));
+  $('#sourceList').replaceChildren(...sources.map(sourceRow));
 }
 
-function haCard() {
-  const card = document.createElement('div');
-  card.className = 'source';
-  const head = document.createElement('div');
-  head.className = 'head';
-  const enabled = document.createElement('input');
-  enabled.type = 'checkbox';
-  enabled.checked = haSource.enabled;
-  enabled.title = 'On';
-  enabled.addEventListener('change', async () => {
-    const data = await api('PUT', '/api/ha/enabled', { enabled: enabled.checked });
-    haSource = data.ha;
-    renderSources();
-    setTimeout(() => { loadSources(); refreshEntities(); refreshStatus(); }, 3000);
-  });
-  const name = document.createElement('b');
-  name.textContent = 'Home Assistant';
-  name.style.flex = '1';
-  const open = document.createElement('button');
-  open.type = 'button';
-  open.textContent = 'Settings';
-  open.addEventListener('click', () => showTab('ha'));
-  head.append(enabled, name, open);
+// One compact row per source: on/off, name, type and status, Edit; × for all but Home Assistant.
+function row(enabled, onToggle, name, detail, onEdit, onDelete) {
+  const el = document.createElement('div');
+  el.className = 'source-row';
+  const toggle = document.createElement('input');
+  toggle.type = 'checkbox';
+  toggle.checked = enabled;
+  toggle.title = 'On';
+  toggle.addEventListener('change', () => onToggle(toggle.checked));
+  const what = document.createElement('div');
+  what.className = 'what';
+  const title = document.createElement('b');
+  title.textContent = name;
   const status = document.createElement('div');
   status.className = 'status';
-  status.textContent = haSource.enabled ? haSource.status : 'Off: biwurth doesn\'t connect to Home Assistant';
-  card.append(head, status);
-  return card;
+  status.textContent = detail;
+  status.title = detail;
+  what.append(title, status);
+  const edit = document.createElement('button');
+  edit.type = 'button';
+  edit.textContent = 'Edit';
+  edit.addEventListener('click', onEdit);
+  el.append(toggle, what, edit);
+  if (onDelete) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '×';
+    del.title = 'Delete source';
+    del.addEventListener('click', onDelete);
+    el.append(del);
+  }
+  return el;
+}
+
+function sourceRow(source, index) {
+  return row(
+    source.enabled !== false,
+    (on) => saveSources(sources.map((s, i) => (i === index ? { ...s, enabled: on } : s))),
+    source.name,
+    `${SOURCE_TYPES[source.type].label}${source.primary ? ' (primary)' : ''} · ${source.status || 'not saved yet'}`,
+    () => openSourceModal(index),
+    () => {
+      if (confirm(`Delete the source “${source.name}”? Tiles showing its values will show “–”.`)) {
+        saveSources(sources.filter((_, i) => i !== index));
+      }
+    },
+  );
+}
+
+// ---- Source settings window
+
+// Edits a copy; nothing changes until Save.
+function openSourceModal(index) {
+  const isNew = index === null;
+  const draft = isNew
+    ? (() => {
+      const type = $('#sourceType').value;
+      const name = type === 'homeassistant' ? 'Home Assistant' : `${SOURCE_TYPES[type].label.split(' ')[0]} ${sources.length + 1}`;
+      return { type, name, enabled: true, settings: {}, fields: SOURCE_TYPES[type].columns.length ? [{}] : [] };
+    })()
+    : structuredClone(sources[index]);
+  const box = $('#sourceModalBox');
+  const render = () => {
+    const title = document.createElement('h2');
+    title.textContent = `${isNew ? 'New source' : draft.name}: ${SOURCE_TYPES[draft.type].label}`;
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'primary';
+    save.textContent = 'Save';
+    save.addEventListener('click', async () => {
+      try {
+        await saveSources(isNew ? [...sources, draft] : sources.map((s, i) => (i === index ? draft : s)));
+        $('#sourceModal').hidden = true;
+      } catch (e) {
+        alert(`Not saved: ${e.message}`);
+      }
+    });
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel';
+    cancel.addEventListener('click', () => { $('#sourceModal').hidden = true; });
+    actions.append(save, cancel);
+    box.replaceChildren(title, sourceForm(draft, render), actions);
+  };
+  render();
+  $('#sourceModal').hidden = false;
 }
 
 function input(value, placeholder, onChange, options) {
@@ -979,36 +1060,38 @@ function input(value, placeholder, onChange, options) {
   return el;
 }
 
-function sourceCard(source, index) {
+// A source's settings, telemetry and fields; [rerender] after adding or removing a field.
+function sourceForm(source, rerender) {
   const type = SOURCE_TYPES[source.type];
-  const card = document.createElement('div');
-  card.className = 'source';
-
-  const head = document.createElement('div');
-  head.className = 'head';
-  const name = input(source.name, 'Name', (v) => { source.name = v; });
-  name.className = 'name';
-  const enabled = document.createElement('input');
-  enabled.type = 'checkbox';
-  enabled.checked = source.enabled !== false;
-  enabled.title = 'On';
-  enabled.addEventListener('change', () => { source.enabled = enabled.checked; });
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.textContent = '×';
-  remove.title = 'Remove source';
-  remove.addEventListener('click', () => { sources.splice(index, 1); renderSources(); });
-  head.append(enabled, name, remove);
-
-  const status = document.createElement('div');
-  status.className = 'status';
-  status.textContent = `${type.label} · ${source.status || 'not saved yet'}`;
-  card.append(head, status);
+  const form = document.createElement('div');
+  form.append(labelled('Name', input(source.name, 'Name', (v) => { source.name = v; updateIds(); })));
+  if (source.status) {
+    const status = document.createElement('p');
+    status.className = 'muted';
+    status.textContent = `Status: ${source.status}`;
+    form.append(status);
+  }
 
   source.settings = source.settings || {};
   for (const [key, label, placeholder, kind] of type.settings) {
     let el;
-    if (kind === 'textarea') {
+    if (kind === 'checkbox') {
+      const check = document.createElement('label');
+      check.className = 'check';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = !!source.settings[key];
+      box.addEventListener('change', () => { source.settings[key] = box.checked; });
+      check.append(box, label);
+      form.append(check);
+      continue;
+    }
+    if (kind === 'password') {
+      // Tokens never come back from the tablet: empty keeps the saved one.
+      el = input('', source.settings.tokenSet ? 'Saved (leave empty to keep it)' : 'Paste the token', (v) => { source.settings[key] = v; });
+      el.type = 'password';
+      el.autocomplete = 'off';
+    } else if (kind === 'textarea') {
       el = document.createElement('textarea');
       el.rows = 2;
       el.value = source.settings[key] ?? '';
@@ -1017,7 +1100,7 @@ function sourceCard(source, index) {
     } else {
       el = input(source.settings[key], placeholder, (v) => { source.settings[key] = v; });
     }
-    card.append(labelled(label, el));
+    form.append(labelled(label, el));
   }
 
   // Telemetry: every source can record its readings and what happened, as CSV per day.
@@ -1028,7 +1111,7 @@ function sourceCard(source, index) {
   const keep = input(source.settings.keepDays ?? 30, '30', (v) => { source.settings.keepDays = v; });
   keep.type = 'number';
   telemetryRow.append(labelled('Record telemetry', mode), labelled('Keep (days)', keep));
-  card.append(telemetryRow);
+  form.append(telemetryRow);
   if (source.telemetryDays) {
     const files = document.createElement('div');
     files.className = 'row';
@@ -1043,7 +1126,7 @@ function sourceCard(source, index) {
       b.addEventListener('click', () => downloadTelemetry(source, days));
       files.append(b);
     }
-    card.append(files);
+    form.append(files);
   }
 
   const table = document.createElement('table');
@@ -1069,7 +1152,7 @@ function sourceCard(source, index) {
     const del = document.createElement('button');
     del.type = 'button';
     del.textContent = '×';
-    del.addEventListener('click', () => { source.fields.splice(row, 1); renderSources(); });
+    del.addEventListener('click', () => { source.fields.splice(row, 1); rerender(); });
     td.append(del);
     tr.append(td);
     table.append(tr);
@@ -1077,17 +1160,24 @@ function sourceCard(source, index) {
   const add = document.createElement('button');
   add.type = 'button';
   add.textContent = '+ Field';
-  add.addEventListener('click', () => { source.fields.push({}); renderSources(); });
+  add.addEventListener('click', () => { source.fields.push({}); rerender(); });
 
   const ids = document.createElement('div');
   ids.className = 'ids';
-  const updateIds = () => {
+  function updateIds() {
     const id = slug(source.id || source.name || '');
     ids.textContent = source.fields.filter((f) => slug(f.name || '')).map((f) => `src.${id}.${slug(f.name)}`).join('  ');
-  };
+  }
   updateIds();
-  card.append(table, add, ids);
-  return card;
+  if (type.columns.length) form.append(table, add, ids);
+  else if (source.type === 'homeassistant') {
+    const hint = document.createElement('p');
+    hint.className = 'muted';
+    hint.textContent = `Create the token in Home Assistant: your profile → Security → Long-lived access tokens. It stays on the tablet. ${
+      source.primary ? 'This is the primary Home Assistant: its entities keep their own ids.' : `Its entities are src.${slug(source.id || source.name || '')}.<entity id>.`}`;
+    form.append(hint);
+  }
+  return form;
 }
 
 async function downloadTelemetry(source, days) {
@@ -1101,27 +1191,7 @@ async function downloadTelemetry(source, days) {
   URL.revokeObjectURL(url);
 }
 
-$('#sourceAdd').addEventListener('click', () => {
-  const type = $('#sourceType').value;
-  sources.push({ type, name: `${SOURCE_TYPES[type].label.split(' ')[0]} ${sources.length + 1}`, enabled: true, settings: {}, fields: [{}] });
-  renderSources();
-});
-
-$('#sourcesSave').addEventListener('click', async () => {
-  // Numbers where the tablet expects numbers.
-  for (const s of sources) {
-    for (const key of ['interval', 'port', 'unit', 'keepDays']) if (s.settings[key] !== undefined && s.settings[key] !== '') s.settings[key] = Number(s.settings[key]);
-    for (const f of s.fields) for (const key of ['address', 'scale']) if (f[key] !== undefined && f[key] !== '') f[key] = Number(f[key]);
-    s.id = slug(s.id || s.name);
-  }
-  try {
-    sources = (await api('PUT', '/api/sources', sources)).sources;
-    renderSources();
-    setTimeout(() => { loadSources(); refreshEntities(); }, 3000);
-  } catch (e) {
-    alert(`Not saved: ${e.message}`);
-  }
-});
+$('#sourceAdd').addEventListener('click', () => openSourceModal(null));
 
 // ---- Log ----------------------------------------------------------------------------------------
 
@@ -1165,16 +1235,12 @@ function showTab(name) {
   if (name === 'updates') refreshUpdate();
   if (name === 'sources') loadSources();
   if (name === 'cameras') loadCameraTiles();
-  document.body.classList.toggle('wide-aside', name === 'sources');
   document.body.classList.toggle('wide-aside-log', name === 'log');
   if (name === 'log') loadLog();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 
 function fillSettings() {
-  $('#haUrl').value = config.ha.url;
-  $('#haToken').value = '';
-  $('#haToken').placeholder = config.ha.tokenSet ? 'Saved (leave empty to keep it)' : 'Paste the token';
 
   const m = config.mqtt;
   $('#mqttName').value = m.deviceName;
@@ -1207,7 +1273,6 @@ async function saveSettings(form, path, body) {
   button.disabled = true;
   try {
     const fresh = await api('PUT', path, body);
-    config.ha = fresh.ha;
     config.mqtt = fresh.mqtt;
     config.screen = fresh.screen;
     config.cameras = fresh.cameras;
@@ -1220,10 +1285,6 @@ async function saveSettings(form, path, body) {
   }
 }
 
-$('#tab-ha').addEventListener('submit', (event) => {
-  event.preventDefault();
-  saveSettings(event.target, '/api/ha', { url: $('#haUrl').value.trim(), token: $('#haToken').value.trim() });
-});
 
 $('#tab-mqtt').addEventListener('submit', (event) => {
   event.preventDefault();

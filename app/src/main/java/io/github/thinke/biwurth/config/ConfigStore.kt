@@ -9,8 +9,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** The one Home Assistant connection; [enabled] off keeps the settings but doesn't connect. */
-data class HaSettings(val url: String = "", val token: String = "", val enabled: Boolean = true) {
+/** A Home Assistant connection's address and long-lived access token (a "homeassistant" source). */
+data class HaSettings(val url: String = "", val token: String = "") {
     val configured get() = url.isNotBlank() && token.isNotBlank()
 }
 
@@ -94,10 +94,6 @@ class ConfigStore(context: Context) {
     private val _layout = MutableStateFlow(read(layoutFile)?.let(Layout::fromJson) ?: Layout.DEFAULT)
     val layout: StateFlow<Layout> = _layout
 
-    private val _ha = MutableStateFlow(
-        read(haFile)?.let { HaSettings(it.optString("url"), it.optString("token"), it.optBoolean("enabled", true)) } ?: HaSettings(),
-    )
-    val ha: StateFlow<HaSettings> = _ha
 
     private val _mqtt = MutableStateFlow(read(mqttFile)?.let(MqttSettings::fromJson) ?: MqttSettings())
     val mqtt: StateFlow<MqttSettings> = _mqtt
@@ -111,16 +107,26 @@ class ConfigStore(context: Context) {
     )
     val sources: StateFlow<List<SourceConfig>> = _sources
 
+    init {
+        migrateHomeAssistant()
+    }
+
+    // Before several Home Assistants, the one connection lived in ha.json: make it a source once.
+    private fun migrateHomeAssistant() {
+        val old = read(haFile) ?: return
+        if (_sources.value.none { it.isHomeAssistant }) {
+            val settings = JSONObject()
+                .put("url", old.optString("url")).put("token", old.optString("token")).put("primary", true)
+            val source = SourceConfig("home_assistant", "Home Assistant", "homeassistant", old.optBoolean("enabled", true), settings, emptyList())
+            saveSources(listOf(source) + _sources.value)
+        }
+        haFile.renameTo(File(haFile.parentFile, "ha.json.migrated"))
+    }
+
     @Synchronized
     fun saveLayout(layout: Layout) {
         write(layoutFile, layout.toJson())
         _layout.value = layout
-    }
-
-    @Synchronized
-    fun saveHa(settings: HaSettings) {
-        write(haFile, JSONObject().put("url", settings.url).put("token", settings.token).put("enabled", settings.enabled))
-        _ha.value = settings
     }
 
     @Synchronized

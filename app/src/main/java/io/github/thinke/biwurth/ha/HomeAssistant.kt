@@ -1,16 +1,16 @@
 package io.github.thinke.biwurth.ha
 
 import io.github.thinke.biwurth.EventLog
-import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.config.HaSettings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -35,10 +35,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Connection to Home Assistant: live entity states over the WebSocket API (reconnecting with
- * backoff, restarted whenever the settings change), service calls, and REST for history and calendars.
+ * One Home Assistant connection (a "homeassistant" source; there can be several): live entity
+ * states over the WebSocket API, reconnecting with backoff, service calls, and REST for history
+ * and calendars. Sources runs it ([run]) while its source is on and [close]s it when it stops.
  */
-class HomeAssistant(private val config: ConfigStore) {
+class HomeAssistant(private val name: String, private val settings: HaSettings) {
     class Entity(val id: String, val state: String, val attributes: JSONObject) {
         val name: String get() = attributes.optString("friendly_name").ifBlank { id }
         val unit: String get() = attributes.optString("unit_of_measurement")
@@ -61,10 +62,16 @@ class HomeAssistant(private val config: ConfigStore) {
             // Starting from the current value: the initial "Not configured" is only the default.
             var last = _status.value
             _status.collect {
-                if (it != last && it != "Connecting…") EventLog.i("ha", it)
+                if (it != last && it != "Connecting…") EventLog.i("ha", "$name: $it")
                 last = it
             }
         }
+    }
+
+    /** Stops everything this connection started; it isn't used again after. */
+    fun close() {
+        socket?.cancel()
+        scope.cancel()
     }
 
     private val _connected = MutableStateFlow(false)
@@ -74,27 +81,20 @@ class HomeAssistant(private val config: ConfigStore) {
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<JSONObject>>()
 
-    fun start() {
-        scope.launch { config.ha.collectLatest(::run) }
-    }
-
-    private suspend fun run(settings: HaSettings) {
+    /** Connects and stays connected, reconnecting as needed, until cancelled. */
+    suspend fun run() {
         cache.clear()
         _entities.value = emptyMap()
         _connected.value = false
-        if (!settings.enabled) {
-            _status.value = "Off"
-            return
-        }
         if (!settings.configured) {
-            _status.value = "Not configured"
-            return
+            _status.value = "Not configured: set the URL and token"
+            awaitCancellation()
         }
         val request = try {
             Request.Builder().url(webSocketUrl(settings.url)).build()
         } catch (e: IllegalArgumentException) {
             _status.value = "Invalid URL"
-            return
+            awaitCancellation()
         }
         var backoff = 2_000L
         while (true) {
@@ -216,7 +216,10 @@ class HomeAssistant(private val config: ConfigStore) {
             "button", "input_button" -> domain to "press"
             else -> "homeassistant" to "toggle"
         }
-        scope.launch { runCatching { callService(serviceDomain, service, entityId) } }
+        scope.launch {
+            runCatching { callService(serviceDomain, service, entityId) }
+                .onFailure { EventLog.e("ha", "Pressing $entityId failed: ${it.message ?: it.javaClass.simpleName}") }
+        }
     }
 
     private val historyStore = HistoryStore()
@@ -319,7 +322,6 @@ class HomeAssistant(private val config: ConfigStore) {
     }
 
     private suspend fun get(path: String): String = withContext(Dispatchers.IO) {
-        val settings = config.ha.value
         val request = Request.Builder()
             .url(settings.url.trimEnd('/') + path)
             .header("Authorization", "Bearer ${settings.token}")

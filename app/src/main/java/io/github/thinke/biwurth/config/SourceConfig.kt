@@ -4,9 +4,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * One of biwurth's own data sources (HTTP/JSON, MQTT topics, status checks, Modbus TCP): its
- * type, name and settings, and the [fields] it turns into entities `src.<id>.<field>`. The
- * settings and fields stay JSON, so each source type reads what it needs.
+ * A data source: a Home Assistant connection, or one of biwurth's own (HTTP/JSON, MQTT topics,
+ * status checks, Modbus TCP) whose [fields] become entities `src.<id>.<field>`. Any number of
+ * each. The settings and fields stay JSON, so each source type reads what it needs.
  */
 data class SourceConfig(
     val id: String,
@@ -16,6 +16,8 @@ data class SourceConfig(
     val settings: JSONObject,
     val fields: List<JSONObject>,
 ) {
+    val isHomeAssistant get() = type == "homeassistant"
+
     /** A field's entity id part, from its name. */
     fun fieldId(field: JSONObject) = slug(field.optString("name"))
 
@@ -24,7 +26,7 @@ data class SourceConfig(
         .put("settings", settings).put("fields", JSONArray(fields))
 
     companion object {
-        val TYPES = setOf("http", "mqtt", "status", "modbus")
+        val TYPES = setOf("homeassistant", "http", "mqtt", "status", "modbus")
 
         /** Entity id parts: lower case letters, digits and underscores. */
         fun slug(text: String) = text.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')

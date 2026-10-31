@@ -29,8 +29,7 @@ class LayoutCompiler(private val app: PanelApp) {
         val entities = app.hub.entities.value
         // Own entities may not have a value yet; check them against the source settings instead.
         val ownIds = app.config.sources.value.flatMap { source -> source.fields.map { "src.${source.id}.${source.fieldId(it)}" } }.toSet()
-        val connected = app.ha.connected.value
-        if (!connected) warnings += "Home Assistant isn't connected, so entities weren't checked or preloaded."
+        val hub = app.hub
 
         val background = layout.background
         if (background.type == "image" && background.image?.let(app.backgrounds::file) == null) {
@@ -46,14 +45,18 @@ class LayoutCompiler(private val app: PanelApp) {
             for (tile in page.tiles) {
                 val ids = entityIds(tile)
                 if (tile.type in ENTITY_TYPES && ids.isEmpty()) warnings += "${page.name}: ${label(tile)} has no entity."
-                for (id in ids.filter { it.startsWith("src.") }) {
+                for (id in ids.filter(hub::isOwn)) {
                     if (id !in ownIds && !id.endsWith("_ms")) warnings += "${page.name}: ${label(tile)}: $id isn't a field of any source."
                 }
-                if (!connected) continue
-                for (id in ids.filterNot { it.startsWith("src.") }) {
+                for (id in ids.filterNot(hub::isOwn)) {
+                    // A Home Assistant that's not connected can't say what it has: check it when it is.
+                    if (!hub.canFetch(id)) {
+                        warnings += "${page.name}: ${label(tile)}: $id wasn't checked, its Home Assistant isn't connected."
+                        continue
+                    }
                     val entity = entities[id]
                     when {
-                        entity == null -> warnings += "${page.name}: ${label(tile)}: $id doesn't exist in Home Assistant."
+                        entity == null -> warnings += "${page.name}: ${label(tile)}: $id doesn't exist in its Home Assistant."
                         tile.type == "graph" && entity.state.toFloatOrNull() == null && entity.state != "unavailable" ->
                             warnings += "${page.name}: ${label(tile)}: $id isn't numeric (\"${entity.state}\"), so it can't be graphed."
                     }
@@ -66,7 +69,7 @@ class LayoutCompiler(private val app: PanelApp) {
 
         val tiles = layout.pages.flatMap { it.tiles }
         val loads = coroutineScope {
-            tiles.mapNotNull { tile -> preload(tile, connected)?.let { load -> async { runCatching { load() }.isSuccess } } }
+            tiles.mapNotNull { tile -> preload(tile)?.let { load -> async { runCatching { load() }.isSuccess } } }
                 .let { jobs ->
                     // Past the limit, give up on the stragglers: their tiles load when shown.
                     withTimeoutOrNull(PRELOAD_TIMEOUT_MS) { jobs.awaitAll() }
@@ -78,17 +81,18 @@ class LayoutCompiler(private val app: PanelApp) {
         return Report(warnings, loads.count { it }, System.currentTimeMillis() - started)
     }
 
-    private fun preload(tile: Tile, connected: Boolean): (suspend () -> Unit)? {
-        val ha = app.ha
+    private fun preload(tile: Tile): (suspend () -> Unit)? {
+        val hub = app.hub
         val ids = entityIds(tile)
+        val connected = ids.isNotEmpty() && hub.historyAvailable(ids)
         return when (tile.type) {
             "graph" -> if (ids.isNotEmpty() && app.hub.historyAvailable(ids)) {
                 suspend { app.hub.history(ids, tile.intProp("hours", 24).coerceIn(1, 24 * 14)) }
             } else {
                 null
             }
-            "weather" -> if (connected && ids.isNotEmpty()) suspend { ha.forecast(ids.first()) } else null
-            "calendar" -> if (connected && ids.isNotEmpty()) suspend { ha.calendar(ids.joinToString(","), tile.intProp("days", 7).coerceIn(1, 60)) } else null
+            "weather" -> if (connected) suspend { hub.forecast(ids.first()) } else null
+            "calendar" -> if (connected) suspend { hub.calendar(ids.joinToString(","), tile.intProp("days", 7).coerceIn(1, 60)) } else null
             "camera" -> {
                 val camera = tile.prop("camera") ?: return null
                 val url = tile.prop("snapshot") ?: app.config.cameras.value.snapshotUrl(camera) ?: return null

@@ -2,6 +2,7 @@ package io.github.thinke.biwurth.sources
 
 import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.config.ConfigStore
+import io.github.thinke.biwurth.config.HaSettings
 import io.github.thinke.biwurth.config.SourceConfig
 import io.github.thinke.biwurth.ha.HomeAssistant
 import kotlinx.coroutines.CancellationException
@@ -30,6 +31,17 @@ class Sources(private val config: ConfigStore, filesDir: File) {
     private val _entities = MutableStateFlow<Map<String, HomeAssistant.Entity>>(emptyMap())
     val entities: StateFlow<Map<String, HomeAssistant.Entity>> = _entities
 
+    /** The running Home Assistant connections, by source id. */
+    private val _homeAssistants = MutableStateFlow<Map<String, HomeAssistant>>(emptyMap())
+    val homeAssistants: StateFlow<Map<String, HomeAssistant>> = _homeAssistants
+
+    /**
+     * The Home Assistant whose entities keep their plain ids (`sensor.x`): the one marked primary,
+     * else the first that's on. Others' entities are `src.<source>.sensor.x`.
+     */
+    private val _primaryHa = MutableStateFlow<String?>(null)
+    val primaryHa: StateFlow<String?> = _primaryHa
+
     /** Per source id: "OK, 3 values at 12:00:05" or what went wrong, for the website. */
     private val _status = MutableStateFlow<Map<String, String>>(emptyMap())
     val status: StateFlow<Map<String, String>> = _status
@@ -48,6 +60,8 @@ class Sources(private val config: ConfigStore, filesDir: File) {
         _entities.value = emptyMap()
         _status.value = emptyMap()
         actions.clear()
+        val homeAssistants = sources.filter { it.isHomeAssistant && it.enabled }
+        _primaryHa.value = (homeAssistants.firstOrNull { it.settings.optBoolean("primary") } ?: homeAssistants.firstOrNull())?.id
         for (source in sources.filter { it.enabled }) {
             launch { keepRunning(source) }
         }
@@ -55,6 +69,7 @@ class Sources(private val config: ConfigStore, filesDir: File) {
 
     // A source that fails (unreachable, bad reply) waits and starts over, longer each time.
     private suspend fun keepRunning(source: SourceConfig) {
+        if (source.isHomeAssistant) return runHomeAssistant(source)
         var backoff = 5_000L
         while (true) {
             try {
@@ -85,6 +100,21 @@ class Sources(private val config: ConfigStore, filesDir: File) {
         is java.io.EOFException -> "the device closed the connection"
         is java.net.SocketTimeoutException -> "no answer in time"
         else -> e.message ?: e.javaClass.simpleName
+    }
+
+    // A Home Assistant connection reconnects by itself; its status is the source's status.
+    private suspend fun runHomeAssistant(source: SourceConfig) {
+        val ha = HomeAssistant(source.name, HaSettings(source.settings.optString("url").trim(), source.settings.optString("token").trim()))
+        _homeAssistants.update { it + (source.id to ha) }
+        try {
+            coroutineScope {
+                launch { ha.status.collect { status(source, it) } }
+                ha.run()
+            }
+        } finally {
+            _homeAssistants.update { it - source.id }
+            ha.close()
+        }
     }
 
     fun entityId(source: SourceConfig, field: JSONObject) = "src.${source.id}.${source.fieldId(field)}"

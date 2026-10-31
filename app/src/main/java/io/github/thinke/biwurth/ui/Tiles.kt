@@ -27,6 +27,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -211,15 +212,34 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     val measured = tile.prop("measurement") != null
     val measurement = tile.prop("measurement")?.let { ha.entity(it) }
     val on = entity?.state in ON_STATES
+    // A tap shows at once, and further taps wait until the new state comes back (at most 5 s):
+    // otherwise the round trip to the device feels like nothing happened, and each extra tap
+    // switches it again.
+    var pendingFrom by remember(id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(pendingFrom, entity?.state) {
+        if (pendingFrom != null && entity?.state != pendingFrom) pendingFrom = null
+    }
+    LaunchedEffect(pendingFrom) {
+        if (pendingFrom != null) {
+            delay(5_000)
+            pendingFrom = null
+        }
+    }
+    val pending = pendingFrom != null
     Card(
         color = if (on) theme.accent else theme.card,
-        modifier = Modifier.clickable(enabled = id != null) { id?.let(ha::press) },
+        modifier = Modifier
+            .clickable(enabled = id != null && !pending) {
+                pendingFrom = entity?.state.orEmpty()
+                id?.let(ha::press)
+            }
+            .graphicsLayer { alpha = if (pending) 0.65f else 1f },
     ) {
         val maxWidth = maxWidth
         val maxHeight = maxHeight
         val textColor = if (on) theme.onAccent else theme.text
         val name = tile.prop("name") ?: entity?.name ?: id ?: "Button"
-        val state = entity?.let { stateLabel(it.state) } ?: "–"
+        val state = if (pending) "Switching…" else entity?.let { stateLabel(it.state) } ?: "–"
         val value = formatState(tile, measurement)
         // A one-row button has no room for three lines: name and state left, the number right.
         if (measured && maxHeight < 90.dp) {
@@ -277,7 +297,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     val labels = tile.prop("labels")?.split(',')?.map { it.trim() }.orEmpty()
     val hours = tile.intProp("hours", 24).coerceIn(1, 24 * 14)
     val current = ha.entities(ids)
-    val connected by ha.connected.collectAsState()
+    val connected by ha.connectedSources.collectAsState()
     var history by remember(ids, hours) { mutableStateOf(ha.cachedHistory(ids, hours).orEmpty()) }
     // Reads come from memory (HistoryStore); re-read on each change of these sensors, and now and
     // then anyway so the time window keeps sliding.
@@ -385,10 +405,10 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
     val maxHeight = maxHeight
     val id = tile.prop("entity") ?: return Title("Pick a weather entity", maxHeight)
     val entity = ha.entity(id)
-    val connected by ha.connected.collectAsState()
+    val connected by ha.connectedSources.collectAsState()
     var forecast by remember(id) { mutableStateOf(ha.cachedForecast(id).orEmpty()) }
     LaunchedEffect(id, connected) {
-        while (connected) {
+        while (ha.canFetch(id)) {
             runCatching { forecast = ha.forecast(id) }
             delay(30.minutes)
         }
@@ -434,10 +454,10 @@ private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
     val maxHeight = maxHeight
     val ids = tile.prop("entity") ?: return Title("Pick a calendar", maxHeight)
     val days = tile.intProp("days", 7).coerceIn(1, 60)
-    val connected by ha.connected.collectAsState()
+    val connected by ha.connectedSources.collectAsState()
     var events by remember(ids, days) { mutableStateOf(ha.cachedCalendar(ids, days).orEmpty()) }
     LaunchedEffect(ids, days, connected) {
-        while (connected) {
+        while (ha.canFetch(ids.substringBefore(',').trim())) {
             runCatching { events = ha.calendar(ids, days) }
             delay(15.minutes)
         }
@@ -446,7 +466,9 @@ private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
     val rowHeight = 40.dp
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Title(tile.prop("name") ?: "Calendar", maxHeight)
-        if (events.isEmpty()) Text(if (connected) "Nothing in the next $days days" else "Waiting for Home Assistant", color = theme.muted)
+        if (events.isEmpty()) {
+            Text(if (ha.canFetch(ids.substringBefore(',').trim())) "Nothing in the next $days days" else "Waiting for Home Assistant", color = theme.muted)
+        }
         events.take(((maxHeight - 24.dp) / rowHeight).toInt().coerceAtLeast(1)).forEach { event ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
