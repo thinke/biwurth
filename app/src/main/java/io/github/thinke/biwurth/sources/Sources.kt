@@ -37,7 +37,7 @@ class Sources(private val config: ConfigStore, filesDir: File) {
 
     /**
      * The Home Assistant whose entities keep their plain ids (`sensor.x`): the one marked primary,
-     * else the first that's on. Others' entities are `src.<source>.sensor.x`.
+     * else the first in the list. Others' entities are `src.<source>.sensor.x`.
      */
     private val _primaryHa = MutableStateFlow<String?>(null)
     val primaryHa: StateFlow<String?> = _primaryHa
@@ -60,7 +60,9 @@ class Sources(private val config: ConfigStore, filesDir: File) {
         _entities.value = emptyMap()
         _status.value = emptyMap()
         actions.clear()
-        val homeAssistants = sources.filter { it.isHomeAssistant && it.enabled }
+        // Chosen among all Home Assistants, on or off, so ids never move to another one when the
+        // primary is switched off: its entities just go away until it's back.
+        val homeAssistants = sources.filter { it.isHomeAssistant }
         _primaryHa.value = (homeAssistants.firstOrNull { it.settings.optBoolean("primary") } ?: homeAssistants.firstOrNull())?.id
         for (source in sources.filter { it.enabled }) {
             launch { keepRunning(source) }
