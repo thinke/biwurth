@@ -79,7 +79,10 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                         prefs.sleepMode = mode
                     }, label = { Text("Screen off (Home Assistant wakes)") })
                 }
-                if (!isAdmin) Hint("Screen off needs device admin: see README.")
+                if (!isAdmin) {
+                Hint("Screen off needs biwurth to be a device admin.")
+                OutlinedButton(onClick = { Kiosk.requestAdmin(activity) }) { Text("Allow screen off") }
+            }
             }
 
             Section("Kiosk mode") {

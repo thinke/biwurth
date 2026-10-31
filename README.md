@@ -61,9 +61,10 @@ never update.
 
 ## One-time tablet setup (over adb)
 
+Device admin (for the "Screen off" sleep mode) needs no adb: the tablet's Settings has an
+**Allow screen off** button that opens Android's own dialog. The rest:
+
 ```sh
-# "Screen off" sleep mode (lockNow)
-adb shell dpm set-active-admin io.github.thinke.biwurth/.AdminReceiver
 # Keeps Wireless debugging on after reboots
 adb shell pm grant io.github.thinke.biwurth android.permission.WRITE_SECURE_SETTINGS
 # Background: no Doze or app standby, so MQTT and the website stay up with the screen off
@@ -83,7 +84,8 @@ account first (Settings → Passwords & accounts). Then:
 adb shell dpm set-device-owner io.github.thinke.biwurth/.AdminReceiver
 ```
 
-The app then disables the lock screen, stays the home app, locks the tablet to itself (no
+biwurth configures itself the moment it becomes device owner, no restart needed: it disables
+the lock screen, stays the home app, locks the tablet to itself (no
 status bar, Home or Recents), grants itself any runtime permission without prompts and installs
 its updates silently. Remove the screen lock PIN first: Android won't drop a lock screen that has
 one. Turn kiosk mode off in the tablet's Settings to reach Android.

@@ -72,6 +72,10 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(layout.orientation) { requestedOrientation = layout.orientation.toActivityInfo() }
 
+                // Made device owner while running: lock into kiosk mode now, not at the next start.
+                val owner by Kiosk.deviceOwner.collectAsState()
+                LaunchedEffect(owner) { if (owner && panel.prefs.kiosk) Kiosk.enter(this@MainActivity) }
+
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
                     PanelScreen(layout, screen.page, onOpenSettings = { showSettings = true })
                     if (showSettings) SettingsScreen(activity = this@MainActivity, onClose = { showSettings = false })

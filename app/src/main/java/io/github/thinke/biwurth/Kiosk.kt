@@ -8,8 +8,17 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import kotlinx.coroutines.flow.MutableStateFlow
 
-class AdminReceiver : DeviceAdminReceiver()
+/**
+ * Becoming device admin or owner (the in-app request, adb, or QR provisioning) configures the
+ * panel at once, without waiting for a restart.
+ */
+class AdminReceiver : DeviceAdminReceiver() {
+    override fun onEnabled(context: Context, intent: Intent) = Kiosk.onRightsChanged(context)
+    override fun onDisabled(context: Context, intent: Intent) = Kiosk.onRightsChanged(context)
+    override fun onProfileProvisioningComplete(context: Context, intent: Intent) = Kiosk.onRightsChanged(context)
+}
 
 /**
  * Kiosk mode for a wall panel. Device admin (set over adb) is enough for "Screen off" sleep;
@@ -20,7 +29,24 @@ object Kiosk {
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
     private fun admin(context: Context) = ComponentName(context, AdminReceiver::class.java)
 
+    /** Whether biwurth is device owner; MainActivity follows it to enter kiosk mode at once. */
+    val deviceOwner = MutableStateFlow(false)
+
     fun isAdmin(context: Context) = dpm(context).isAdminActive(admin(context))
+
+    fun onRightsChanged(context: Context) {
+        applyPolicies(context)
+        deviceOwner.value = isDeviceOwner(context)
+    }
+
+    /** Android's own "Activate device admin?" dialog: enough for the "Screen off" sleep mode. */
+    fun requestAdmin(activity: Activity) {
+        activity.startActivity(
+            Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, admin(activity))
+                .putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Lets biwurth switch the screen off when it sleeps."),
+        )
+    }
     fun isDeviceOwner(context: Context) = dpm(context).isDeviceOwnerApp(context.packageName)
 
     fun isLocked(activity: Activity) =
@@ -54,6 +80,7 @@ object Kiosk {
         dpm.clearPackagePersistentPreferredActivities(admin(activity), activity.packageName)
         dpm.setKeyguardDisabled(admin(activity), false)
         dpm.clearDeviceOwnerApp(activity.packageName)
+        deviceOwner.value = false
     }
 
     // Without device owner, startLockTask() would ask the user to pin the app instead.
