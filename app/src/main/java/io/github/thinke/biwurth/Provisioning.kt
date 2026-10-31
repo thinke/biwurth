@@ -1,18 +1,20 @@
 package io.github.thinke.biwurth
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Base64
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import io.github.thinke.biwurth.update.SIGNING_FLAGS
 import io.github.thinke.biwurth.update.Version
+import io.github.thinke.biwurth.update.signers
 import org.json.JSONObject
 import java.security.MessageDigest
 
@@ -49,8 +51,8 @@ object Provisioning {
     // SHA-256 of our signing certificate, URL-safe base64 without padding, as Android expects.
     // It's this build's key: a debug build gives a checksum no GitHub release matches.
     private fun signatureChecksum(context: Context): String {
-        val info = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        val cert = info.signingInfo?.apkContentsSigners?.firstOrNull() ?: error("biwurth has no signing certificate")
+        val info = context.packageManager.getPackageInfo(context.packageName, SIGNING_FLAGS)
+        val cert = info.signers().firstOrNull() ?: error("biwurth has no signing certificate")
         val digest = MessageDigest.getInstance("SHA-256").digest(cert.toByteArray())
         return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
     }
@@ -82,6 +84,9 @@ object Provisioning {
 
 /** Android 12+ setup asks the device-owner app which mode it wants: a fully managed panel. */
 class ProvisioningModeActivity : Activity() {
+    // Only Android 12+ starts this (the constants are inlined); older Android needs no answer and
+    // finishes through AdminReceiver.onProfileProvisioningComplete.
+    @SuppressLint("InlinedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(

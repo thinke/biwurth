@@ -9,8 +9,9 @@ android {
 
     defaultConfig {
         applicationId = "io.github.thinke.biwurth"
-        // Built for one wall tablet (Android 16); 30 keeps the kiosk and window APIs free of version checks.
-        minSdk = 30
+        // 26 (Android 8.0) so older wall tablets can run it too; newer kiosk, window and installer
+        // APIs sit behind version checks.
+        minSdk = 26
         targetSdk = 36
         // CI passes these from the release tag (v1.2.3 -> 1.2.3); local builds use the defaults.
         versionCode = System.getenv("BIWURTH_VERSION_CODE")?.toInt() ?: 1

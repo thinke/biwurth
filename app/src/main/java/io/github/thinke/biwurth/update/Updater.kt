@@ -7,8 +7,12 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
+import androidx.core.content.IntentCompat
+import androidx.core.content.pm.PackageInfoCompat
 import io.github.thinke.biwurth.BuildConfig
 import io.github.thinke.biwurth.EventLog
 import io.github.thinke.biwurth.Kiosk
@@ -75,6 +79,14 @@ class Updater(private val context: Context, private val prefs: Prefs) {
     // Debug builds are signed with the debug key, so a release could never replace them.
     val canUpdate: Boolean get() = !BuildConfig.DEBUG
 
+    /**
+     * Whether an update installs with nobody at the tablet. Before Android 12 Android asks for every
+     * update unless biwurth is device owner, so installing automatically would only put up the
+     * installer's prompt over the panel again and again.
+     */
+    val installsSilently: Boolean
+        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S || Kiosk.isDeviceOwner(context)
+
     /** When the panel comes on screen, as SnapTV does on opening, unless we checked a few minutes ago. */
     fun checkOnStart() = checkIfOlderThan(START_MIN_INTERVAL_MS)
 
@@ -86,7 +98,9 @@ class Updater(private val context: Context, private val prefs: Prefs) {
         scope.launch {
             check()
             val available = _state.value as? UpdateState.Available
-            if (available != null && prefs.updateAutoInstall && !isSkipped(available.release)) install(available.release)
+            if (available != null && prefs.updateAutoInstall && installsSilently && !isSkipped(available.release)) {
+                install(available.release)
+            }
         }
     }
 
@@ -158,6 +172,7 @@ class Updater(private val context: Context, private val prefs: Prefs) {
             .put("check", prefs.updateCheck)
             .put("prerelease", prefs.updatePrerelease)
             .put("autoInstall", prefs.updateAutoInstall)
+            .put("silentInstall", installsSilently)
             .put("lastCheck", prefs.lastUpdateCheck)
         when (val s = _state.value) {
             UpdateState.Idle -> json.put("state", "idle")
@@ -211,16 +226,21 @@ class Updater(private val context: Context, private val prefs: Prefs) {
     /** Same package, same signing certificate, not a downgrade. */
     private fun verify(apk: File) {
         val pm = context.packageManager
-        val flags = PackageManager.GET_SIGNING_CERTIFICATES
-        val archive = pm.getPackageArchiveInfo(apk.path, flags) ?: error("The download is not a valid app")
-        val current = pm.getPackageInfo(context.packageName, flags)
+        val archive = pm.getPackageArchiveInfo(apk.path, SIGNING_FLAGS) ?: error("The download is not a valid app")
+        val current = pm.getPackageInfo(context.packageName, SIGNING_FLAGS)
         if (archive.packageName != context.packageName) error("The download is a different app (${archive.packageName})")
-        if (certs(archive) != certs(current)) error("The download is not signed by the same key as this biwurth, so it was not installed")
-        if (archive.longVersionCode < current.longVersionCode) error("The download is older than the installed version")
+        val archiveCerts = certs(archive)
+        val currentCerts = certs(current)
+        // No certificates on either side would make the sets equal without proving anything.
+        if (archiveCerts.isEmpty() || currentCerts.isEmpty()) error("Couldn't read the download's signature, so it was not installed")
+        if (archiveCerts != currentCerts) error("The download is not signed by the same key as this biwurth, so it was not installed")
+        if (PackageInfoCompat.getLongVersionCode(archive) < PackageInfoCompat.getLongVersionCode(current)) {
+            error("The download is older than the installed version")
+        }
     }
 
     private fun certs(p: PackageInfo): Set<String> =
-        p.signingInfo?.apkContentsSigners.orEmpty().map { s ->
+        p.signers().map { s ->
             MessageDigest.getInstance("SHA-256").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
         }.toSet()
 
@@ -229,8 +249,11 @@ class Updater(private val context: Context, private val prefs: Prefs) {
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
             // Updating ourselves needs no confirmation where Android allows it (device owner, or
-            // once biwurth installed itself); otherwise Android asks on the tablet.
-            setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            // once biwurth installed itself); otherwise Android asks on the tablet. Before Android 12
+            // there is no such switch: a device owner's session installs silently anyway.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
+            }
         }
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
@@ -238,9 +261,12 @@ class Updater(private val context: Context, private val prefs: Prefs) {
                 apk.inputStream().use { it.copyTo(out) }
                 session.fsync(out)
             }
+            // Mutable because PackageInstaller fills in the result extras; before Android 12
+            // PendingIntents are mutable by default and the flag doesn't exist.
+            val mutable = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
             val intent = PendingIntent.getBroadcast(
                 context, id, Intent(context, InstallResultReceiver::class.java),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+                PendingIntent.FLAG_UPDATE_CURRENT or mutable,
             )
             session.commit(intent.intentSender)
         }
@@ -283,12 +309,22 @@ class Updater(private val context: Context, private val prefs: Prefs) {
     }
 }
 
+/** PackageManager flags that fill in [signers]: signingInfo exists from Android 9, signatures before. */
+@Suppress("DEPRECATION")
+internal val SIGNING_FLAGS: Int =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+
+/** The certificates the APK is signed with, read as [SIGNING_FLAGS] asked for them. */
+@Suppress("DEPRECATION")
+internal fun PackageInfo.signers(): List<Signature> =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) signingInfo?.apkContentsSigners.orEmpty().toList() else signatures.orEmpty().toList()
+
 /** Receives PackageInstaller's result; when it needs the user's OK, shows Android's confirmation. */
 class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) {
-            val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) ?: return
+            val confirm = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java) ?: return
             confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(confirm)
             return

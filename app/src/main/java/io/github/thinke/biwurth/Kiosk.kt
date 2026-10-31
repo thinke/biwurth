@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.provider.Settings
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -67,8 +68,11 @@ object Kiosk {
         val dpm = dpm(context)
         val admin = admin(context)
         dpm.setLockTaskPackages(admin, arrayOf(context.packageName))
-        // No status bar, notifications, Home or Recents while locked.
-        dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+        // No status bar, notifications, Home or Recents while locked; before Android 9 that's
+        // already how lock task behaves and there are no features to set.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+        }
         dpm.setKeyguardDisabled(admin, true)
         val home = IntentFilter(Intent.ACTION_MAIN).apply {
             addCategory(Intent.CATEGORY_HOME)
@@ -102,9 +106,18 @@ object Kiosk {
             val dpm = dpm(activity)
             val admin = admin(activity)
             dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, SETTINGS_PACKAGE))
-            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_HOME)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_HOME)
+            } else {
+                // Home can't be enabled in lock task before Android 9, so unlock instead of leaving
+                // Back as the only way out; onResume locks again when biwurth is back.
+                leave(activity)
+            }
         }
-        val intent = if (wifiOnly) Intent(Settings.Panel.ACTION_WIFI) else Intent(Settings.ACTION_SETTINGS)
+        val wifi = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) Settings.Panel.ACTION_WIFI else Settings.ACTION_WIFI_SETTINGS
+        val intent = Intent(if (wifiOnly) wifi else Settings.ACTION_SETTINGS)
+        // In biwurth's task (root if_whitelisted) Android 8 locks Settings again at once; its own task stays unlocked.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         runCatching { activity.startActivity(intent) }
     }
 
@@ -113,7 +126,9 @@ object Kiosk {
         if (!isDeviceOwner(context)) return
         val dpm = dpm(context)
         dpm.setLockTaskPackages(admin(context), arrayOf(context.packageName))
-        dpm.setLockTaskFeatures(admin(context), DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            dpm.setLockTaskFeatures(admin(context), DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+        }
     }
 
     private const val SETTINGS_PACKAGE = "com.android.settings"

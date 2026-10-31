@@ -3,7 +3,9 @@
 A wall display for Home Assistant on an Android tablet: a kiosk launcher that shows your home on
 pages of tiles, configured from a website the tablet hosts itself, and that shows up in Home
 Assistant as an MQTT device. Built and tested on a Cepter Tab Nexa (CTABNEXT10C, Unisoc T7250,
-Android 16, 4 GB RAM); any Android 11+ tablet should do.
+Android 16, 4 GB RAM); any Android 8.0+ tablet should do. On older Android: `set-standby-bucket`
+is missing before 9, kiosk mode on 8.0/8.1 hides only what Android itself decides, and updates
+without device owner ask for confirmation every time before Android 12.
 
 - **Panel** (the tablet screen): pages of tiles you swipe between: clock, entity value,
   toggle/button, history graph (several sensors per graph), weather, calendar, camera. Any
@@ -119,8 +121,11 @@ biwurth can be uninstalled. The rest:
 ```sh
 # Background: no Doze or app standby, so MQTT and the website stay up with the screen off
 adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
-adb shell am set-standby-bucket io.github.thinke.biwurth active
+adb shell am set-standby-bucket io.github.thinke.biwurth active   # Android 9+
 ```
+
+App standby buckets came in Android 9, so `set-standby-bucket` fails on 8.0/8.1: skip it, the
+deviceidle whitelist is enough.
 
 A foreground service (`PanelService`) keeps the process running when another app is in front,
 and holds the CPU awake while the screen is off so MQTT keep-alives don't stall.
@@ -140,6 +145,11 @@ status bar, Home or Recents), grants itself any runtime permission without promp
 its updates silently. Remove the screen lock PIN first: Android won't drop a lock screen that has
 one. Turn kiosk mode off in the tablet's Settings to reach Android.
 
+On Android 8.0/8.1 the lock task can't be configured (that came in Android 9), so Android itself
+decides what it hides (Home and Recents). The **Wi-Fi…** and **Android settings…** buttons in the
+tablet's Settings leave kiosk mode while Android's Settings are open, and kiosk mode resumes
+when the panel comes back.
+
 adb can't remove a device owner. To undo it, use **Release device owner** in the tablet's
 Settings (top-left corner, five taps); after that biwurth can be uninstalled.
 
@@ -151,7 +161,8 @@ Wi-Fi). On the new tablet's first "Welcome" screen, tap six times in the same sp
 Android downloads the latest biwurth release from GitHub, checks it's signed with the release
 key, and makes it device owner, which then configures itself. No Google account is added.
 Restore a backup from the old panel's website to bring the layout over. The code only works
-from a panel running a release build (it carries the release key's checksum).
+from a panel running a release build (it carries the release key's checksum). On Android 8.x
+the setup wizard asks for Wi-Fi first, to download its QR reader.
 
 ## Sleep
 
