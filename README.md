@@ -47,6 +47,18 @@ fine to bookmark on your own devices.
 - **MQTT**: broker host, port, user, password, TLS and the device name in Home Assistant.
 - **Screen**: sleep timeout, sleep mode, brightness, wake/sleep now.
 
+## Releases and updates
+
+Pushing a tag `v1.2.3` builds a signed APK on GitHub Actions and publishes it as a release with
+its `.sha256` (`.github/workflows/release.yml`); a tag with a suffix (`v1.2.3-rc1`) becomes a
+pre-release. The repo needs four secrets, the same keystore as SnapTV: `BIWURTH_KEYSTORE_BASE64`
+(`base64 -w0 release.jks`), `BIWURTH_KEYSTORE_PASSWORD`, `BIWURTH_KEY_ALIAS`, `BIWURTH_KEY_PASSWORD`.
+
+The app checks for releases daily (website → Updates, or Home Assistant's update entity), checks
+each download against its SHA-256 and the installed app's signing key, and installs it. Updates
+only reach release builds signed with that key: install one release by hand first; debug builds
+never update.
+
 ## One-time tablet setup (over adb)
 
 ```sh
@@ -71,10 +83,13 @@ account first (Settings → Passwords & accounts). Then:
 adb shell dpm set-device-owner io.github.thinke.biwurth/.AdminReceiver
 ```
 
-The app then disables the lock screen, stays the home app and locks the tablet to itself
-(no status bar, Home or Recents). Turn kiosk mode off in the tablet's Settings to reach Android.
-To undo device owner: `adb shell dpm remove-active-admin io.github.thinke.biwurth/.AdminReceiver`
-(works for debug builds).
+The app then disables the lock screen, stays the home app, locks the tablet to itself (no
+status bar, Home or Recents), grants itself any runtime permission without prompts and installs
+its updates silently. Remove the screen lock PIN first: Android won't drop a lock screen that has
+one. Turn kiosk mode off in the tablet's Settings to reach Android.
+
+adb can't remove a device owner. To undo it, use **Release device owner** in the tablet's
+Settings (top-left corner, five taps); after that biwurth can be uninstalled.
 
 ## Sleep
 

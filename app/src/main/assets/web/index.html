@@ -39,6 +39,7 @@
         <button data-tab="cameras">Cameras</button>
         <button data-tab="screen">Screen</button>
         <button data-tab="backup">Backup</button>
+        <button data-tab="updates">Updates</button>
       </nav>
 
       <div id="tab-tile" class="tab"></div>
@@ -191,6 +192,23 @@
         <p class="muted">Replaces the settings in the file. A file without the token or password keeps
           the ones the tablet has.</p>
         <button type="button" id="backupRestore">Restore from file…</button>
+      </div>
+      <div id="tab-updates" class="tab" hidden>
+        <h2>Updates</h2>
+        <p id="updateVersion" class="muted"></p>
+        <div id="updateInfo"></div>
+        <div class="row">
+          <button type="button" id="updateCheck">Check now</button>
+          <button type="button" id="updateInstall" class="primary" hidden>Install</button>
+          <button type="button" id="updateSkip" hidden>Skip this version</button>
+          <button type="button" id="updatePermission" hidden>Allow installing on the tablet</button>
+        </div>
+        <label class="check"><input id="updateAuto" type="checkbox"> Check daily</label>
+        <label class="check"><input id="updateAutoInstall" type="checkbox"> Install updates automatically</label>
+        <label class="check"><input id="updatePre" type="checkbox"> Include pre-releases</label>
+        <p class="muted">Releases come from github.com/thinke/biwurth. Each download is checked against its
+          SHA-256 and the installed app's signing key. A device-owner panel installs without asking;
+          otherwise Android asks once on the tablet.</p>
       </div>
     </aside>
   </main>

@@ -9,6 +9,7 @@ import io.github.thinke.biwurth.config.CameraSettings
 import io.github.thinke.biwurth.config.HaSettings
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.MqttSettings
+import io.github.thinke.biwurth.update.UpdateState
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONException
@@ -161,6 +162,30 @@ class WebServer(private val app: PanelApp) {
                 if (body.optString("password").isEmpty()) body.put("password", app.config.mqtt.value.password)
                 app.config.saveMqtt(MqttSettings.fromJson(body))
                 json(200, config())
+            }
+            "GET /api/update" -> json(200, app.updater.stateJson())
+            "POST /api/update/check" -> {
+                runBlocking { app.updater.check() }
+                json(200, app.updater.stateJson())
+            }
+            "POST /api/update/install", "POST /api/update/skip" -> {
+                val release = (app.updater.state.value as? UpdateState.Available)?.release
+                    ?: (app.updater.state.value as? UpdateState.NeedsPermission)?.release
+                    ?: (app.updater.state.value as? UpdateState.Failed)?.release
+                    ?: throw BadRequest("No update to act on: check first")
+                if (request.path.endsWith("install")) app.updater.install(release) else app.updater.skip(release)
+                json(200, app.updater.stateJson())
+            }
+            "POST /api/update/permission" -> {
+                main.post(app.updater::openInstallPermissionSettings)
+                json(200, app.updater.stateJson())
+            }
+            "PUT /api/update/settings" -> {
+                val body = JSONObject(request.body)
+                if (body.has("check")) app.prefs.updateCheck = body.getBoolean("check")
+                if (body.has("prerelease")) app.prefs.updatePrerelease = body.getBoolean("prerelease")
+                if (body.has("autoInstall")) app.prefs.updateAutoInstall = body.getBoolean("autoInstall")
+                json(200, app.updater.stateJson())
             }
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
             "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))

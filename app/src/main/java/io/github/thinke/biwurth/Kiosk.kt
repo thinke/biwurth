@@ -13,7 +13,8 @@ class AdminReceiver : DeviceAdminReceiver()
 
 /**
  * Kiosk mode for a wall panel. Device admin (set over adb) is enough for "Screen off" sleep;
- * device owner (README) adds no lock screen, always-home and lock task mode.
+ * device owner (README) adds no lock screen, always-home, lock task mode, auto-granted
+ * permissions and silent updates.
  */
 object Kiosk {
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
@@ -38,6 +39,21 @@ object Kiosk {
             addCategory(Intent.CATEGORY_DEFAULT)
         }
         dpm.addPersistentPreferredActivity(admin, home, ComponentName(context, MainActivity::class.java))
+        // Every runtime permission biwurth asks for is granted without a prompt; nobody is at the panel.
+        dpm.setPermissionPolicy(admin, DevicePolicyManager.PERMISSION_POLICY_AUTO_GRANT)
+    }
+
+    /**
+     * Gives up device owner (and with it kiosk mode and silent updates). adb can't remove a device
+     * owner, so without this only a factory reset could; afterwards biwurth can be uninstalled.
+     */
+    fun releaseDeviceOwner(activity: Activity) {
+        if (!isDeviceOwner(activity)) return
+        leave(activity)
+        val dpm = dpm(activity)
+        dpm.clearPackagePersistentPreferredActivities(admin(activity), activity.packageName)
+        dpm.setKeyguardDisabled(admin(activity), false)
+        dpm.clearDeviceOwnerApp(activity.packageName)
     }
 
     // Without device owner, startLockTask() would ask the user to pin the app instead.

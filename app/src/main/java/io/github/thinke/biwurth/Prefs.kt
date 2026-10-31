@@ -36,6 +36,28 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("kiosk", true)
         set(value) = sp.edit { putBoolean("kiosk", value) }
 
+    /** Check GitHub for new releases (daily); see Updater. */
+    var updateCheck: Boolean
+        get() = sp.getBoolean("updateCheck", true)
+        set(value) = sp.edit { putBoolean("updateCheck", value) }
+
+    var updatePrerelease: Boolean
+        get() = sp.getBoolean("updatePrerelease", false)
+        set(value) = sp.edit { putBoolean("updatePrerelease", value) }
+
+    /** Install what the daily check finds; silent on a device-owner panel. */
+    var updateAutoInstall: Boolean
+        get() = sp.getBoolean("updateAutoInstall", false)
+        set(value) = sp.edit { putBoolean("updateAutoInstall", value) }
+
+    var lastUpdateCheck: Long
+        get() = sp.getLong("lastUpdateCheck", 0)
+        set(value) = sp.edit { putLong("lastUpdateCheck", value) }
+
+    var skippedVersion: String?
+        get() = sp.getString("skippedVersion", null)
+        set(value) = sp.edit { putString("skippedVersion", value) }
+
     /** Bearer token for the control API, made once per install. */
     val token: String
         get() = sp.getString("token", null) ?: newToken().also { sp.edit { putString("token", it) } }

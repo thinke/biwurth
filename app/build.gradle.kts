@@ -12,8 +12,23 @@ android {
         // Built for one wall tablet (Android 16); 30 keeps the kiosk and window APIs free of version checks.
         minSdk = 30
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes these from the release tag (v1.2.3 -> 1.2.3); local builds use the defaults.
+        versionCode = System.getenv("BIWURTH_VERSION_CODE")?.toInt() ?: 1
+        versionName = System.getenv("BIWURTH_VERSION_NAME") ?: "0.1.0"
+    }
+
+    // Release signing comes from the environment so no key material lives in the repo (the
+    // SnapTV keystore). Without it, local release builds fall back to the debug key.
+    val keystore = System.getenv("BIWURTH_KEYSTORE")
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("BIWURTH_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("BIWURTH_KEY_ALIAS")
+                keyPassword = System.getenv("BIWURTH_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -21,9 +36,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Installed by hand on our own tablet: the debug key will do, and lets a release build
-            // replace a debug one without losing the settings.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

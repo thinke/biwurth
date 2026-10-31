@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import io.github.thinke.biwurth.config.MqttSettings
+import io.github.thinke.biwurth.update.UpdateState
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,8 @@ import kotlin.math.roundToInt
 
 /**
  * The tablet as a Home Assistant device over MQTT (discovery): screen switch, brightness, sleep
- * timeout and page select, plus battery, charging, last touch, Wi-Fi signal and IP sensors.
+ * timeout and page select, battery, charging, last touch, Wi-Fi signal and IP sensors, and an
+ * update entity that installs new releases.
  * State is one retained JSON message, sent on every change and once a minute.
  */
 class MqttDevice(private val app: PanelApp) {
@@ -122,6 +124,7 @@ class MqttDevice(private val app: PanelApp) {
                 },
                 // The page select lists the pages, so it changes with the layout.
                 launch { app.config.layout.drop(1).collect { publishDiscovery(client, settings) } },
+                launch { app.updater.state.collect { publishUpdate(client) } },
             )
             val cause = lost.await()
             jobs.forEach { it.cancel() }
@@ -154,6 +157,9 @@ class MqttDevice(private val app: PanelApp) {
                     main.post(screen::restartIdleTimer)
                     scope.launch { republish() }
                 }
+                "update" -> if (payload == "install") {
+                    (app.updater.state.value as? UpdateState.Available)?.release?.let(app.updater::install)
+                }
                 "page" -> {
                     val index = app.config.layout.value.pages.indexOfFirst { it.name == payload }
                     if (index >= 0) main.post { screen.page.value = index }
@@ -171,6 +177,7 @@ class MqttDevice(private val app: PanelApp) {
             publish(client, "$base/availability", "online")
             publishDiscovery(client, settings)
             publishState(client)
+            publishUpdate(client)
         }
     }
 
@@ -240,6 +247,14 @@ class MqttDevice(private val app: PanelApp) {
                     .put("value_template", "{{ value_json.wifi_signal }}"),
             )
             .put(
+                "update",
+                component("update", "biwurth", null)
+                    .put("state_topic", "$base/update")
+                    .put("command_topic", "$base/update/set")
+                    .put("payload_install", "install")
+                    .put("entity_category", "config"),
+            )
+            .put(
                 "ip",
                 component("sensor", "IP address", "mdi:ip-network")
                     .put("entity_category", "diagnostic")
@@ -295,6 +310,30 @@ class MqttDevice(private val app: PanelApp) {
             .put("wifi_signal", wifiSignal() ?: JSONObject.NULL)
             .put("ip", ipAddress() ?: JSONObject.NULL)
         runCatching { publish(client, "$base/state", state.toString()) }
+    }
+
+    // Home Assistant's update entity: versions, notes, and whether an install is running.
+    private fun publishUpdate(client: MqttClient) {
+        if (!client.isConnected) return
+        val updater = app.updater
+        val state = updater.state.value
+        val release = when (state) {
+            is UpdateState.Available -> state.release
+            is UpdateState.Downloading -> state.release
+            is UpdateState.Installing -> state.release
+            is UpdateState.NeedsPermission -> state.release
+            else -> null
+        }
+        val json = JSONObject()
+            .put("installed_version", updater.installed.toString())
+            .put("latest_version", (release?.version ?: updater.latest?.version ?: updater.installed).toString())
+            .put("title", "biwurth")
+            .put("in_progress", state is UpdateState.Downloading || state is UpdateState.Installing)
+        release?.let { r ->
+            json.put("release_url", r.pageUrl)
+            json.put("release_summary", r.changes.flatMap { it.lines }.joinToString("\n").take(255))
+        }
+        runCatching { publish(client, "$base/update", json.toString()) }
     }
 
     private fun publish(client: MqttClient, topic: String, payload: String) {

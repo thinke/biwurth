@@ -688,11 +688,68 @@ $('#backupFile').addEventListener('change', async (event) => {
   }
 });
 
+// ---- Updates -------------------------------------------------------------------------------------
+
+async function refreshUpdate(action) {
+  try {
+    const u = action ? await api('POST', `/api/update/${action}`) : await api('GET', '/api/update');
+    renderUpdate(u);
+  } catch (e) {
+    $('#updateInfo').textContent = e.message;
+  }
+}
+
+function renderUpdate(u) {
+  const last = u.lastCheck ? new Date(u.lastCheck).toLocaleString() : 'never';
+  $('#updateVersion').textContent = `Installed ${u.installed}${u.canUpdate ? '' : ' (debug build: updates need a release build)'} · last check ${last}`;
+  const info = $('#updateInfo');
+  info.replaceChildren();
+  const line = (text) => { const p = document.createElement('p'); p.textContent = text; info.append(p); };
+  const r = u.release;
+  ({
+    idle: () => line('Not checked yet.'),
+    checking: () => line('Checking…'),
+    upToDate: () => line(`Up to date${u.latest ? ` (latest release ${u.latest})` : ''}.`),
+    available: () => line(`biwurth ${r.version} is available${u.skipped ? ' (skipped)' : ''}.`),
+    downloading: () => line(`Downloading ${r.version}: ${Math.round(u.fraction * 100)} %`),
+    installing: () => line(`Installing ${r.version}… ${u.deviceOwner ? '' : 'Confirm on the tablet.'}`),
+    needsPermission: () => line('Android needs permission for biwurth to install apps: allow it on the tablet, then Install again.'),
+    failed: () => line(u.message),
+  }[u.state] || (() => {}))();
+  if (r && r.changes?.length) {
+    for (const change of r.changes) {
+      const h = document.createElement('div');
+      h.className = 'muted';
+      h.textContent = `What's new in ${change.version}`;
+      const ul = document.createElement('ul');
+      ul.replaceChildren(...change.lines.map((t) => { const li = document.createElement('li'); li.textContent = t; return li; }));
+      info.append(h, ul);
+    }
+  }
+  const actionable = ['available', 'failed', 'needsPermission'].includes(u.state) && r;
+  $('#updateInstall').hidden = !actionable || !u.canUpdate;
+  $('#updateSkip').hidden = !(u.state === 'available' && !u.skipped);
+  $('#updatePermission').hidden = u.state !== 'needsPermission';
+  $('#updateAuto').checked = u.check;
+  $('#updateAutoInstall').checked = u.autoInstall;
+  $('#updatePre').checked = u.prerelease;
+  if (['checking', 'downloading', 'installing'].includes(u.state)) setTimeout(() => refreshUpdate(), 1500);
+}
+
+$('#updateCheck').addEventListener('click', () => refreshUpdate('check'));
+$('#updateInstall').addEventListener('click', () => refreshUpdate('install'));
+$('#updateSkip').addEventListener('click', () => refreshUpdate('skip'));
+$('#updatePermission').addEventListener('click', () => refreshUpdate('permission'));
+for (const [id, field] of [['#updateAuto', 'check'], ['#updateAutoInstall', 'autoInstall'], ['#updatePre', 'prerelease']]) {
+  $(id).addEventListener('change', async () => renderUpdate(await api('PUT', '/api/update/settings', { [field]: $(id).checked })));
+}
+
 // ---- Settings tabs ------------------------------------------------------------------------------
 
 function showTab(name) {
   document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === name));
   document.querySelectorAll('.tab').forEach((t) => { t.hidden = t.id !== `tab-${name}`; });
+  if (name === 'updates') refreshUpdate();
 }
 document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
 

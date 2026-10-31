@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.ha.HomeAssistant
+import io.github.thinke.biwurth.update.Updater
 
 class PanelApp : Application() {
     lateinit var prefs: Prefs
@@ -19,6 +20,8 @@ class PanelApp : Application() {
         private set
     lateinit var mqtt: MqttDevice
         private set
+    lateinit var updater: Updater
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -26,6 +29,7 @@ class PanelApp : Application() {
         config = ConfigStore(this)
         ha = HomeAssistant(config).also { it.start() }
         screen = ScreenController(this, prefs)
+        updater = Updater(this, prefs)
         mqtt = MqttDevice(this).also { it.start() }
         WebServer(this).start()
         keepWirelessDebuggingOn()

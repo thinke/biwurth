@@ -92,6 +92,13 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                     Text(if (kiosk && isOwner) "Locked to this app" else "Off")
                 }
                 if (!isOwner) Hint("Kiosk mode needs device owner: see README.")
+            if (isOwner) {
+                OutlinedButton(onClick = {
+                    Kiosk.releaseDeviceOwner(activity)
+                    kiosk = false
+                }) { Text("Release device owner") }
+                Hint("Ends kiosk mode and lets biwurth be uninstalled. Setting it again needs adb.")
+            }
             }
 
             Section("Website") {
