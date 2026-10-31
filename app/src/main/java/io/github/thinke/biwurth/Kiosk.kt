@@ -68,10 +68,10 @@ object Kiosk {
         val dpm = dpm(context)
         val admin = admin(context)
         dpm.setLockTaskPackages(admin, arrayOf(context.packageName))
-        // No status bar, notifications, Home or Recents while locked; before Android 9 that's
-        // already how lock task behaves and there are no features to set.
+        // No status bar, notifications, Home or Recents while locked, only the power menu; before
+        // Android 9 that's already how lock task behaves and there are no features to set.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+            dpm.setLockTaskFeatures(admin, KIOSK_FEATURES)
         }
         dpm.setKeyguardDisabled(admin, true)
         val home = IntentFilter(Intent.ACTION_MAIN).apply {
@@ -107,7 +107,7 @@ object Kiosk {
             val admin = admin(activity)
             dpm.setLockTaskPackages(admin, arrayOf(activity.packageName, SETTINGS_PACKAGE))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                dpm.setLockTaskFeatures(admin, DevicePolicyManager.LOCK_TASK_FEATURE_HOME)
+                dpm.setLockTaskFeatures(admin, KIOSK_FEATURES or DevicePolicyManager.LOCK_TASK_FEATURE_HOME)
             } else {
                 // Home can't be enabled in lock task before Android 9, so unlock instead of leaving
                 // Back as the only way out; onResume locks again when biwurth is back.
@@ -127,11 +127,15 @@ object Kiosk {
         val dpm = dpm(context)
         dpm.setLockTaskPackages(admin(context), arrayOf(context.packageName))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            dpm.setLockTaskFeatures(admin(context), DevicePolicyManager.LOCK_TASK_FEATURE_NONE)
+            dpm.setLockTaskFeatures(admin(context), KIOSK_FEATURES)
         }
     }
 
     private const val SETTINGS_PACKAGE = "com.android.settings"
+
+    // Locked, but holding the power button still opens the power menu (power off, restart):
+    // without it a kiosk tablet can't be switched off at all.
+    private const val KIOSK_FEATURES = DevicePolicyManager.LOCK_TASK_FEATURE_GLOBAL_ACTIONS
 
     // Without device owner, startLockTask() would ask the user to pin the app instead.
     fun enter(activity: Activity) {

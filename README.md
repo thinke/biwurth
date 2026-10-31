@@ -124,6 +124,14 @@ adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
 adb shell am set-standby-bucket io.github.thinke.biwurth active   # Android 9+
 ```
 
+Many tablets open the assistant (Gemini) when the power button is held. For a power menu
+(Power off, Restart), which kiosk mode keeps available, set it once: Settings → System →
+Gestures → Press and hold power button → Power menu, or over adb:
+
+```sh
+adb shell settings put global power_button_long_press 1
+```
+
 App standby buckets came in Android 9, so `set-standby-bucket` fails on 8.0/8.1: skip it, the
 deviceidle whitelist is enough.
 
