@@ -4,6 +4,7 @@ import android.app.Activity
 import android.net.ConnectivityManager
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -51,97 +53,101 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
 
     // The Surface sets the text colour; plain Text on the bare activity would be black on black.
     Surface(Modifier.fillMaxSize(), color = Color(0xF0101010), contentColor = Color.White) {
-        Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(32.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Settings", style = MaterialTheme.typography.headlineMedium)
-                Text(
-                    "biwurth ${BuildConfig.VERSION_NAME}${if (BuildConfig.DEBUG) " (debug)" else ""}",
-                    color = Color(0xFF909090),
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-            }
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(32.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Settings", style = MaterialTheme.typography.headlineMedium)
+                    Text(
+                        "biwurth ${BuildConfig.VERSION_NAME}${if (BuildConfig.DEBUG) " (debug)" else ""}",
+                        color = Color(0xFF909090),
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
 
-            Section("Sleep after") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IDLE_CHOICES.forEach { (seconds, label) ->
-                        FilterChip(selected = idle == seconds, onClick = {
-                            idle = seconds
-                            prefs.idleSeconds = seconds
-                            app.screen.restartIdleTimer()
-                        }, label = { Text(label) })
+                Section("Sleep after") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IDLE_CHOICES.forEach { (seconds, label) ->
+                            FilterChip(selected = idle == seconds, onClick = {
+                                idle = seconds
+                                prefs.idleSeconds = seconds
+                                app.screen.restartIdleTimer()
+                            }, label = { Text(label) })
+                        }
                     }
                 }
-            }
 
-            Section("Sleep mode") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = mode == SleepMode.BACKLIGHT_OFF, onClick = {
+                Section("Sleep mode") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = mode == SleepMode.BACKLIGHT_OFF, onClick = {
+                            mode = SleepMode.BACKLIGHT_OFF
+                            prefs.sleepMode = mode
+                        }, label = { Text("Backlight off (touch wakes)") })
+                        FilterChip(selected = mode == SleepMode.SCREEN_OFF, enabled = isAdmin, onClick = {
+                            mode = SleepMode.SCREEN_OFF
+                            prefs.sleepMode = mode
+                        }, label = { Text("Screen off (Home Assistant wakes)") })
+                    }
+                    if (!isAdmin) {
+                    Hint("Screen off needs biwurth to be a device admin.")
+                    OutlinedButton(onClick = { Kiosk.requestAdmin(activity) }) { Text("Allow screen off") }
+                } else if (!isOwner) {
+                    OutlinedButton(onClick = {
+                        Kiosk.removeAdmin(activity)
                         mode = SleepMode.BACKLIGHT_OFF
                         prefs.sleepMode = mode
-                    }, label = { Text("Backlight off (touch wakes)") })
-                    FilterChip(selected = mode == SleepMode.SCREEN_OFF, enabled = isAdmin, onClick = {
-                        mode = SleepMode.SCREEN_OFF
-                        prefs.sleepMode = mode
-                    }, label = { Text("Screen off (Home Assistant wakes)") })
+                    }) { Text("Remove device admin") }
+                    Hint("Needed before biwurth can be uninstalled. Screen off sleep stops working.")
                 }
-                if (!isAdmin) {
-                Hint("Screen off needs biwurth to be a device admin.")
-                OutlinedButton(onClick = { Kiosk.requestAdmin(activity) }) { Text("Allow screen off") }
-            } else if (!isOwner) {
-                OutlinedButton(onClick = {
-                    Kiosk.removeAdmin(activity)
-                    mode = SleepMode.BACKLIGHT_OFF
-                    prefs.sleepMode = mode
-                }) { Text("Remove device admin") }
-                Hint("Needed before biwurth can be uninstalled. Screen off sleep stops working.")
-            }
-            }
-
-            Section("Kiosk mode") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Switch(checked = kiosk, enabled = isOwner, onCheckedChange = {
-                        kiosk = it
-                        prefs.kiosk = it
-                        if (it) Kiosk.enter(activity) else Kiosk.leave(activity)
-                    })
-                    Text(if (kiosk && isOwner) "Locked to this app" else "Off")
                 }
-                if (!isOwner) Hint("Kiosk mode needs device owner: see README.")
-            if (isOwner) {
-                OutlinedButton(onClick = {
-                    Kiosk.releaseDeviceOwner(activity)
-                    kiosk = false
-                }) { Text("Release device owner") }
-                Hint("Ends kiosk mode and lets biwurth be uninstalled. Setting it again needs adb.")
-            }
-            }
 
-            Section("Tablet") {
+                Section("Kiosk mode") {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Switch(checked = kiosk, enabled = isOwner, onCheckedChange = {
+                            kiosk = it
+                            prefs.kiosk = it
+                            if (it) Kiosk.enter(activity) else Kiosk.leave(activity)
+                        })
+                        Text(if (kiosk && isOwner) "Locked to this app" else "Off")
+                    }
+                    if (!isOwner) Hint("Kiosk mode needs device owner: see README.")
+                if (isOwner) {
+                    OutlinedButton(onClick = {
+                        Kiosk.releaseDeviceOwner(activity)
+                        kiosk = false
+                    }) { Text("Release device owner") }
+                    Hint("Ends kiosk mode and lets biwurth be uninstalled. Setting it again needs adb.")
+                }
+                }
+
+                Section("Tablet") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = true) }) { Text("Wi-Fi…") }
+                        OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = false) }) { Text("Android settings…") }
+                    }
+                    if (isOwner) Hint("Home or Back returns to biwurth, which locks the tablet again.")
+                }
+
+                UpdatesSection(app.updater, prefs)
+
+                Section("Website") {
+                    Text("Edit the layout and connect Home Assistant from a computer or phone on this network:")
+                    Mono("http://${ipAddress(activity) ?: "<tablet IP>"}:${WebServer.PORT}")
+                    Mono("Key: ${prefs.token}")
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = true) }) { Text("Wi-Fi…") }
-                    OutlinedButton(onClick = { Kiosk.openSystemSettings(activity, wifiOnly = false) }) { Text("Android settings…") }
+                    Button(onClick = onClose) { Text("Close") }
+                    OutlinedButton(onClick = {
+                        onClose()
+                        app.screen.sleep()
+                    }) { Text("Sleep now") }
                 }
-                if (isOwner) Hint("Home or Back returns to biwurth, which locks the tablet again.")
             }
-
-            UpdatesSection(app.updater, prefs)
-
-            Section("Website") {
-                Text("Edit the layout and connect Home Assistant from a computer or phone on this network:")
-                Mono("http://${ipAddress(activity) ?: "<tablet IP>"}:${WebServer.PORT}")
-                Mono("Key: ${prefs.token}")
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onClose) { Text("Close") }
-                OutlinedButton(onClick = {
-                    onClose()
-                    app.screen.sleep()
-                }) { Text("Sleep now") }
-            }
+            // Always in reach, however far down the page is scrolled.
+            FilledTonalButton(onClick = onClose, modifier = Modifier.align(Alignment.TopEnd).padding(20.dp)) { Text("✕  Close") }
         }
     }
 }
