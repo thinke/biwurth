@@ -82,9 +82,16 @@ object PanelSnapshot {
         } else {
             bitmap
         }
-        return ByteArrayOutputStream().use { out ->
-            scaled.compress(if (options.jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG, 85, out)
-            out.toByteArray()
+        return try {
+            ByteArrayOutputStream().use { out ->
+                scaled.compress(if (options.jpeg) Bitmap.CompressFormat.JPEG else Bitmap.CompressFormat.PNG, 85, out)
+                out.toByteArray()
+            }
+        } finally {
+            // A screen-sized bitmap lives in native memory, which the Java heap's rare collections
+            // free only late: let it go now so a run of screenshots doesn't pile them up.
+            if (scaled !== bitmap) scaled.recycle()
+            bitmap.recycle()
         }
     }
 
@@ -121,7 +128,8 @@ object PanelSnapshot {
             val rowPixels = plane.rowStride / plane.pixelStride
             val padded = Bitmap.createBitmap(rowPixels, image.height, Bitmap.Config.ARGB_8888)
             padded.copyPixelsFromBuffer(plane.buffer.rewind())
-            return if (rowPixels == image.width) padded else Bitmap.createBitmap(padded, 0, 0, image.width, image.height)
+            if (rowPixels == image.width) return padded
+            return Bitmap.createBitmap(padded, 0, 0, image.width, image.height).also { padded.recycle() }
         }
     }
 
