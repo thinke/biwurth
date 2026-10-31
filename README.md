@@ -202,6 +202,12 @@ curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/sleep
 
 Give the tablet a fixed IP (DHCP reservation) so the website and these keep working.
 
+The whole API, written for LLMs and scripts, is at `http://<tablet>:2323/llms.txt` (no key
+needed to read it). It covers the tile schema (`/api/schema`), checking a layout without saving it
+(`/api/layout/check`), automatic tile placement, small page and tile edits, undo, entity search,
+and `/api/screenshot`, which draws a page (also an unsaved draft) off-screen as the tablet would
+show it.
+
 ## License
 
 MIT, see [LICENSE](LICENSE). The bundled Inter font is under the SIL Open Font License

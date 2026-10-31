@@ -1,0 +1,69 @@
+# biwurth
+
+> A wall-tablet panel for Home Assistant. This website (port 2323 on the tablet) edits what the
+> panel shows: pages of tiles on a grid. Everything below is a JSON API on this same address.
+
+## Access
+
+Every /api/* call needs the header `Authorization: Bearer <key>`. The key is in the tablet's
+Settings (tap the panel's top-left corner five times); ask the user for it. Without it the API
+answers 401. Bodies are JSON (`Content-Type: application/json`).
+
+Ask the user before anything that changes the panel: saving a layout, page or tile changes, undo,
+backup restore, updates, settings, or clearing the log. Reading is always fine.
+
+## Layouts
+
+A layout is `{columns, rows, orientation, theme, background, pages: [{id, name, tiles: [...]}]}`.
+A tile is `{id, type, x, y, w, h, props}` on whole grid cells (default grid 12 × 8, stretched
+over the whole screen). Prop values are strings.
+
+- GET /api/schema: grid size, screen size in pixels, themes, backgrounds, and every tile type
+  with its props, allowed values, default and minimum size, and which entity domains it takes.
+  Read this first.
+- GET /api/entities?q=<words>&domain=<domain>: entities to show, each with its state, unit,
+  domain, whether it's numeric, and `tiles`: the tile types that suit it, best first.
+- GET /api/layout: the saved layout.
+- POST /api/layout/check (body: a layout): checks without saving. Returns the layout as it would
+  be saved and `report.issues`: `{code, message, page, tile, entity}` with codes overlap,
+  too_small, no_entity, entity_missing, not_numeric, wrong_domain, unknown_field, not_checked,
+  no_stream, background_missing.
+- POST /api/screenshot (body: a draft layout, or `{"layout": …, "page": n}`): a PNG of that page
+  as the tablet draws it, made off-screen; nothing is saved or shown. GET /api/screenshot?page=n
+  for the saved layout. Query: scale=0.1-1 (0.5 is plenty to judge a layout), format=jpeg,
+  settle=<ms>. Takes a few seconds; cameras show a snapshot.
+- PUT /api/layout (body: a layout): saves it; the panel switches to it. Returns the report.
+- GET /api/layout/history, POST /api/layout/undo: every save keeps the layout it replaced (20 of
+  them); undo puts back the last one.
+
+Leave out a tile's x and y and it goes in the first free spot (left to right, top to bottom) after
+the tiles that have one, in list order. Leave out w and h for its type's default size. So a page
+can be written as an ordered list of tiles with sizes, and the positions come back filled in.
+
+Small changes without resending the whole layout (each saves, and undo goes back; <page> is a
+page id or its number from 0):
+
+- POST /api/layout/pages {name, tiles?}: add a page.
+- PATCH /api/layout/pages/<page> {name}, DELETE /api/layout/pages/<page>.
+- POST /api/layout/pages/<page>/tiles {type, w?, h?, x?, y?, props}: add a tile.
+- PATCH /api/layout/pages/<page>/tiles/<tile> {x?, y?, w?, h?, type?, props?}: props merge into
+  the tile's; "" or null removes one.
+- DELETE /api/layout/pages/<page>/tiles/<tile>.
+
+## Designing a layout
+
+1. GET /api/schema and GET /api/entities?q=… for what's available.
+2. Write the page; let auto placement position tiles unless the arrangement matters.
+3. POST /api/layout/check and fix every issue.
+4. POST /api/screenshot?scale=0.5 with the draft and look at it: text that's cut off or tiny,
+   empty areas, tiles too small for their content. Repeat 2-4.
+5. Show the user the screenshot, and save (PUT /api/layout) when they agree.
+
+## Panel
+
+- GET /api/status: screen state, page shown, Home Assistant and MQTT connection.
+- GET /state, POST /wake, POST /sleep: the screen.
+- GET /api/config: layout, MQTT, cameras and screen settings in one.
+- GET /api/logs: the last 500 log lines (plain text); GET /api/logs/all for all of them.
+- GET /api/cameras: go2rtc stream names; GET /api/cameras/status: how each camera tile is doing.
+- GET /api/update: installed and latest version.

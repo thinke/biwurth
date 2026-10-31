@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -92,6 +93,30 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
         }
     }
 }
+
+/**
+ * One page as the panel shows it, for a screenshot drawn off-screen (PanelSnapshot): the
+ * background and tiles without the pager, page dots or Settings corner. Tiles see [LocalPreview].
+ */
+@Composable
+fun PanelPreview(layout: Layout, page: Page) {
+    val theme = PanelTheme.from(layout.theme)
+    CompositionLocalProvider(
+        LocalPanelTheme provides theme,
+        LocalTextStyle provides panelTextStyle(layout.theme.font),
+        LocalTextScale provides layout.theme.textScale,
+        LocalTileOpacity provides layout.theme.tileOpacity / 100f,
+        LocalPreview provides true,
+    ) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            PanelBackground(layout.background, theme)
+            PageView(layout, page)
+        }
+    }
+}
+
+/** True while drawing a preview: tiles mustn't start streams or change what the panel reports. */
+val LocalPreview = staticCompositionLocalOf { false }
 
 @Composable
 private fun PageView(layout: Layout, page: Page) {

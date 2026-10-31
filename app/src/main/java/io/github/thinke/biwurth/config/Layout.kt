@@ -49,12 +49,14 @@ data class Layout(
         )
 
     companion object {
-        val TYPES = setOf("clock", "entity", "toggle", "graph", "weather", "calendar", "camera")
+        val TYPES: Set<String> = TileTypes.BY_KEY.keys
         val DEFAULT = Layout(pages = listOf(Page("home", "Home", listOf(Tile("clock", "clock", 0, 0, 12, 8, emptyMap())))))
 
         /**
          * Parses and cleans up a layout: unknown tile types are dropped, tiles are kept on the grid
-         * and there is always at least one page.
+         * and there is always at least one page. A tile without "w"/"h" gets its type's default size,
+         * and one without "x"/"y" goes in the first free spot (left to right, top to bottom) after
+         * the placed tiles, in list order: whoever writes the layout can give only order and size.
          */
         fun fromJson(json: JSONObject): Layout {
             val columns = json.optInt("columns", 12).coerceIn(1, 48)
@@ -79,22 +81,46 @@ data class Layout(
                     Page(
                         id = page.optString("id").ifBlank { UUID.randomUUID().toString() },
                         name = page.optString("name").ifBlank { "Page ${i + 1}" },
-                        tiles = (0 until tiles.length()).mapNotNull { t ->
-                            tiles.optJSONObject(t)?.let { tileFromJson(it, columns, rows) }
-                        },
+                        tiles = tilesFromJson((0 until tiles.length()).mapNotNull { tiles.optJSONObject(it) }, columns, rows),
                     )
                 }.ifEmpty { DEFAULT.pages },
             )
         }
 
-        private fun tileFromJson(json: JSONObject, columns: Int, rows: Int): Tile? {
+        /** Parses a page's tiles, placing those without a position after the ones with one. */
+        fun tilesFromJson(tiles: List<JSONObject>, columns: Int, rows: Int): List<Tile> {
+            val parsed = tiles.mapNotNull { json -> tileFromJson(json, columns, rows)?.let { it to (json.has("x") && json.has("y")) } }
+            val result = parsed.map { it.first }.toMutableList()
+            val placed = parsed.filter { it.second }.map { it.first }.toMutableList()
+            for (i in parsed.indices) {
+                if (parsed[i].second) continue
+                val tile = parsed[i].first
+                // No room: leave it at the top left, where the compiler reports the overlap.
+                val spot = freeSpot(placed, tile.w, tile.h, columns, rows)
+                result[i] = if (spot != null) tile.copy(x = spot.first, y = spot.second) else tile
+                placed += result[i]
+            }
+            return result
+        }
+
+        /** The first top-left cell, row by row, where a [w] × [h] tile fits without overlapping [tiles]. */
+        fun freeSpot(tiles: List<Tile>, w: Int, h: Int, columns: Int, rows: Int): Pair<Int, Int>? {
+            for (y in 0..rows - h) {
+                for (x in 0..columns - w) {
+                    if (tiles.none { x < it.x + it.w && it.x < x + w && y < it.y + it.h && it.y < y + h }) return x to y
+                }
+            }
+            return null
+        }
+
+        fun tileFromJson(json: JSONObject, columns: Int, rows: Int): Tile? {
             val type = json.optString("type")
-            if (type !in TYPES) return null
-            val w = json.optInt("w", 1).coerceIn(1, columns)
-            val h = json.optInt("h", 1).coerceIn(1, rows)
+            val default = TileTypes.BY_KEY[type] ?: return null
+            val w = json.optInt("w", default.size.first).coerceIn(1, columns)
+            val h = json.optInt("h", default.size.second).coerceIn(1, rows)
             val propsJson = json.optJSONObject("props") ?: JSONObject()
             return Tile(
-                id = json.optString("id").ifBlank { UUID.randomUUID().toString() },
+                id = json.optString("id").ifBlank { UUID.randomUUID().toString().take(8) },
                 type = type,
                 x = json.optInt("x").coerceIn(0, columns - w),
                 y = json.optInt("y").coerceIn(0, rows - h),
@@ -104,7 +130,7 @@ data class Layout(
             )
         }
 
-        private fun Tile.toJson(): JSONObject = JSONObject()
+        fun Tile.toJson(): JSONObject = JSONObject()
             .put("id", id).put("type", type)
             .put("x", x).put("y", y).put("w", w).put("h", h)
             .put("props", JSONObject(props))

@@ -123,11 +123,39 @@ class ConfigStore(context: Context) {
         haFile.renameTo(File(haFile.parentFile, "ha.json.migrated"))
     }
 
+    // Earlier layouts, newest last, so a bad save can be undone: layout-history/<millis>.json.
+    private val historyDir = File(context.filesDir, "layout-history")
+
+    /** Saves [layout], keeping the one it replaces in the history unless this is an [undo]. */
     @Synchronized
-    fun saveLayout(layout: Layout) {
+    fun saveLayout(layout: Layout, remember: Boolean = true) {
+        val previous = _layout.value
+        if (remember && previous != layout) {
+            historyDir.mkdirs()
+            write(File(historyDir, "${System.currentTimeMillis()}.json"), previous.toJson())
+            historyFiles().dropLast(HISTORY_SIZE).forEach { it.delete() }
+        }
         write(layoutFile, layout.toJson())
         _layout.value = layout
     }
+
+    /** The saved earlier layouts, newest first: when each was replaced, and the layout. */
+    @Synchronized
+    fun layoutHistory(): List<Pair<Long, Layout>> = historyFiles().reversed().mapNotNull { file ->
+        read(file)?.let { file.nameWithoutExtension.toLong() to Layout.fromJson(it) }
+    }
+
+    /** Puts back the layout from before the last save and forgets it; null when there is none. */
+    @Synchronized
+    fun undoLayout(): Layout? {
+        val file = historyFiles().lastOrNull() ?: return null
+        val layout = read(file)?.let(Layout::fromJson)
+        file.delete()
+        return layout?.also { saveLayout(it, remember = false) } ?: undoLayout()
+    }
+
+    private fun historyFiles(): List<File> =
+        historyDir.listFiles { f -> f.name.matches(Regex("\\d+\\.json")) }.orEmpty().sortedBy { it.nameWithoutExtension.toLong() }
 
     @Synchronized
     fun saveMqtt(settings: MqttSettings) {
@@ -163,5 +191,6 @@ class ConfigStore(context: Context) {
 
     private companion object {
         const val TAG = "ConfigStore"
+        const val HISTORY_SIZE = 20
     }
 }

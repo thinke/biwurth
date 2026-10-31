@@ -75,6 +75,23 @@ fun CameraTile(tile: Tile) {
     val fullStream = tile.prop("fullStream")?.let(cameras::streamUrl) ?: stream
     val snapshot = tile.prop("snapshot") ?: cameras.snapshotUrl(camera)
     val fit = tile.prop("fit") == "contain"
+    // A preview shows the snapshot only: no stream, live slot or status of the panel's own tile.
+    if (LocalPreview.current) {
+        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black)) {
+            Snapshot(snapshot, fit, refreshMs = 0L)
+            if (stream == null) Hint("Set the go2rtc address on the website, or use an rtsp:// URL")
+            tile.prop("name")?.let { name ->
+                Text(
+                    name,
+                    color = Color.White,
+                    fontSize = detail(14.dp),
+                    modifier = Modifier.align(Alignment.BottomStart).padding(8.dp)
+                        .background(Color(0x80000000), RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+        return
+    }
     val awake = screen == ScreenState.AWAKE || (cameras.keepLiveAsleep && screen == ScreenState.DIMMED)
     val slot = hasLiveSlot(tile.id, cameras.maxLive)
     val live = stream != null && awake && slot
