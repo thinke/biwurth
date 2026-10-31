@@ -38,8 +38,10 @@ class WebServer(private val app: PanelApp) {
         val path: String,
         val query: String,
         val headers: Map<String, String>,
-        val body: String,
-    )
+        val bytes: ByteArray,
+    ) {
+        val body: String get() = bytes.toString(Charsets.UTF_8)
+    }
     private class Response(val status: Int, val type: String, val body: ByteArray)
     private class BadRequest(message: String) : Exception(message)
 
@@ -105,7 +107,7 @@ class WebServer(private val app: PanelApp) {
             read += n
         }
         val target = requestLine[1]
-        return Request(requestLine[0], target.substringBefore('?'), target.substringAfter('?', ""), headers, body.toString(Charsets.UTF_8))
+        return Request(requestLine[0], target.substringBefore('?'), target.substringAfter('?', ""), headers, body)
     }
 
     private fun readLine(input: InputStream): String? {
@@ -125,6 +127,12 @@ class WebServer(private val app: PanelApp) {
         if (!authorized(request.headers["authorization"].orEmpty())) return json(401, error("Wrong or missing key"))
 
         val screen = app.screen
+        // Background pictures for the website's preview: /api/background/image/<file name>.
+        if (request.method == "GET" && request.path.startsWith("/api/background/image/")) {
+            val file = app.backgrounds.file(request.path.substringAfterLast('/')) ?: return json(404, error("Not found"))
+            val type = when (file.extension) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
+            return Response(200, type, file.readBytes())
+        }
         return when ("${request.method} ${request.path}") {
             "GET /state", "GET /api/state" -> json(200, JSONObject().put("screen", screen.state.value.name.lowercase()))
             "POST /wake", "POST /api/wake" -> {
@@ -203,6 +211,10 @@ class WebServer(private val app: PanelApp) {
                         .put("svg", Provisioning.qrSvg(payload.toString())),
                 )
             }
+            "PUT /api/background/image" -> {
+                val name = runCatching { app.backgrounds.save(request.bytes) }.getOrElse { throw BadRequest(it.message ?: "Bad picture") }
+                json(200, JSONObject().put("image", name))
+            }
             "GET /api/backup" -> json(200, backup(includeSecrets = "secrets=1" in request.query.split('&')))
             "PUT /api/backup" -> json(200, restore(JSONObject(request.body)))
             "GET /api/cameras" -> json(200, go2rtcStreams())
@@ -241,6 +253,12 @@ class WebServer(private val app: PanelApp) {
             .put("ha", JSONObject().put("url", ha.url).put("tokenSet", ha.token.isNotEmpty()))
             .put("mqtt", mqtt.toJson().put("password", "").put("passwordSet", mqtt.password.isNotEmpty()))
             .put("cameras", app.config.cameras.value.toJson())
+            .apply {
+                val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
+                if (image != null) {
+                    put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
+                }
+            }
             .put(
                 "screen",
                 JSONObject()
@@ -286,6 +304,12 @@ class WebServer(private val app: PanelApp) {
             .put("ha", JSONObject().put("url", ha.url).apply { if (includeSecrets) put("token", ha.token) })
             .put("mqtt", mqtt.toJson().apply { if (!includeSecrets) remove("password") })
             .put("cameras", app.config.cameras.value.toJson())
+            .apply {
+                val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
+                if (image != null) {
+                    put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
+                }
+            }
             .put(
                 "screen",
                 JSONObject()
@@ -321,7 +345,11 @@ class WebServer(private val app: PanelApp) {
             main.post(app.screen::restartIdleTimer)
         }
         backup.optJSONObject("layout")?.let {
-            val layout = Layout.fromJson(it)
+            var layout = Layout.fromJson(it)
+            backup.optString("backgroundImage").takeIf { data -> data.isNotEmpty() }?.let { data ->
+                val name = app.backgrounds.save(android.util.Base64.decode(data, android.util.Base64.DEFAULT))
+                layout = layout.copy(background = layout.background.copy(image = name))
+            }
             report = runBlocking { LayoutCompiler(app).compile(layout) }
             app.config.saveLayout(layout)
         }
@@ -364,7 +392,8 @@ class WebServer(private val app: PanelApp) {
     companion object {
         const val PORT = 2323
         private const val TAG = "WebServer"
-        private const val MAX_BODY = 1 shl 20
+        // Background pictures are the largest uploads.
+        private const val MAX_BODY = 16 shl 20
         private val CONTROL_PATHS = setOf("/state", "/wake", "/sleep")
         private val REASONS = mapOf(
             200 to "OK", 400 to "Bad Request", 401 to "Unauthorized",

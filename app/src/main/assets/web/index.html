@@ -97,6 +97,51 @@
         </label>
         <p class="muted">Scales all text on the panel, Auto sizes included. Each tile's own Text size is
           under Tile.</p>
+        <label>Tile opacity <input id="tileOpacity" type="range" min="0" max="100" step="5"></label>
+        <p class="muted">How solid tile backgrounds are over the background; a tile's own Opacity overrides it.
+          Text stays fully visible.</p>
+
+        <h2>Background</h2>
+        <label>Type
+          <select id="bgType">
+            <option value="theme">Theme colour</option>
+            <option value="color">Single colour</option>
+            <option value="gradient">Gradient</option>
+            <option value="image">Picture</option>
+          </select>
+        </label>
+        <div id="bgColorRow" class="row"><label>Colour <input id="bgColor" type="color"></label></div>
+        <div id="bgGradientRow">
+          <div class="row">
+            <label>From <input id="bgColor1" type="color"></label>
+            <label>To <input id="bgColor2" type="color"></label>
+            <label>Direction
+              <select id="bgAngle">
+                <option value="0">→</option><option value="45">↘</option><option value="90">↓</option>
+                <option value="135">↙</option><option value="180">←</option><option value="225">↖</option>
+                <option value="270">↑</option><option value="315">↗</option>
+              </select>
+            </label>
+          </div>
+          <label class="check"><input id="bgAnimate" type="checkbox"> Slowly turning</label>
+        </div>
+        <div id="bgImageRow">
+          <div class="row">
+            <button type="button" id="bgUpload">Choose picture…</button>
+            <span id="bgImageName" class="muted"></span>
+          </div>
+          <label>Show as
+            <select id="bgMode">
+              <option value="fill">Fill (crop to the screen)</option>
+              <option value="fit">Fit (whole picture)</option>
+              <option value="stretch">Stretch</option>
+              <option value="tile">Tile</option>
+              <option value="center">Centre (actual size)</option>
+            </select>
+          </label>
+        </div>
+        <label>Dim <input id="bgDim" type="range" min="0" max="90" step="5"></label>
+
         <div class="row">
           <label>Columns <input id="columns" type="number" min="1" max="48"></label>
           <label>Rows <input id="rows" type="number" min="1" max="48"></label>
@@ -233,6 +278,7 @@
 
   <input id="pageFile" type="file" accept=".json,application/json" hidden>
   <input id="backupFile" type="file" accept=".json,application/json" hidden>
+  <input id="bgFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
 
   <div id="login" class="overlay" hidden>
     <form>

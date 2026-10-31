@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.provider.Settings
+import io.github.thinke.biwurth.config.BackgroundStore
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.ha.HomeAssistant
 import io.github.thinke.biwurth.update.Updater
@@ -17,6 +18,8 @@ class PanelApp : Application() {
     lateinit var prefs: Prefs
         private set
     lateinit var config: ConfigStore
+        private set
+    lateinit var backgrounds: BackgroundStore
         private set
     lateinit var ha: HomeAssistant
         private set
@@ -31,6 +34,7 @@ class PanelApp : Application() {
         super.onCreate()
         prefs = Prefs(this)
         config = ConfigStore(this)
+        backgrounds = BackgroundStore(this)
         ha = HomeAssistant(config).also { it.start() }
         screen = ScreenController(this, prefs)
         updater = Updater(this, prefs)

@@ -60,7 +60,10 @@ private val ON_STATES = setOf("on", "open", "opening", "playing", "home", "unloc
 @Composable
 fun TileView(tile: Tile) {
     val ha = LocalContext.current.panel.ha
-    CompositionLocalProvider(LocalTileTextSize provides tile.prop("textSize")) { TileContent(tile, ha) }
+    val opacity = tile.prop("opacity")?.toIntOrNull()?.coerceIn(0, 100)?.div(100f) ?: LocalTileOpacity.current
+    CompositionLocalProvider(LocalTileTextSize provides tile.prop("textSize"), LocalTileOpacity provides opacity) {
+        TileContent(tile, ha)
+    }
 }
 
 @Composable
@@ -99,7 +102,8 @@ internal fun Card(
     content: @Composable BoxWithConstraintsScope.() -> Unit,
 ) {
     BoxWithConstraints(
-        modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(color).padding(12.dp),
+        modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
+            .background(color.copy(alpha = color.alpha * LocalTileOpacity.current)).padding(12.dp),
         content = content,
     )
 }
@@ -111,6 +115,9 @@ internal fun Dp.sp(fraction: Float): TextUnit =
 
 /** The panel-wide text scale (Layout → Text scale), for how far away the panel is read from. */
 val LocalTextScale = staticCompositionLocalOf { 1f }
+
+/** The panel-wide tile opacity (Layout → Tile opacity); a tile's own "opacity" replaces it. */
+val LocalTileOpacity = staticCompositionLocalOf { 1f }
 
 /** The tile's "Text size": null for Auto, else small, medium, large or xl. */
 private val LocalTileTextSize = staticCompositionLocalOf<String?> { null }

@@ -31,12 +31,14 @@ data class Layout(
     val orientation: Orientation = Orientation.LANDSCAPE,
     val pages: List<Page> = emptyList(),
     val theme: ThemeSettings = ThemeSettings(),
+    val background: Background = Background(),
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("columns", columns)
         .put("rows", rows)
         .put("orientation", orientation.key)
-        .put("theme", JSONObject().put("preset", theme.preset).put("accent", theme.accent ?: "").put("font", theme.font).put("textScale", theme.textScale.toDouble()))
+        .put("background", background.toJson())
+        .put("theme", JSONObject().put("preset", theme.preset).put("accent", theme.accent ?: "").put("font", theme.font).put("textScale", theme.textScale.toDouble()).put("tileOpacity", theme.tileOpacity))
         .put(
             "pages",
             JSONArray(
@@ -62,12 +64,14 @@ data class Layout(
                 columns = columns,
                 rows = rows,
                 orientation = Orientation.fromKey(json.optString("orientation")),
+                background = Background.fromJson(json.optJSONObject("background") ?: JSONObject()),
                 theme = json.optJSONObject("theme").let { theme ->
                     ThemeSettings(
                         preset = theme?.optString("preset")?.ifBlank { null } ?: "dark",
                         accent = theme?.optString("accent")?.takeIf { it.matches(Regex("#[0-9a-fA-F]{6}")) },
                         font = if (theme?.optString("font") == "system") "system" else "inter",
                         textScale = (theme?.optDouble("textScale", 1.0) ?: 1.0).toFloat().coerceIn(0.5f, 2f),
+                        tileOpacity = (theme?.optInt("tileOpacity", 100) ?: 100).coerceIn(0, 100),
                     )
                 },
                 pages = (0 until pages.length()).mapNotNull { pages.optJSONObject(it) }.mapIndexed { i, page ->
@@ -117,7 +121,51 @@ data class ThemeSettings(
     val font: String = "inter",
     /** Scales all text, automatic sizes included: for a panel read from further away. */
     val textScale: Float = 1f,
+    /** How opaque tile backgrounds are, 0–100 %; a tile's own "opacity" overrides it. */
+    val tileOpacity: Int = 100,
 )
+
+/**
+ * Behind all pages: the theme's colour, one colour, a gradient (optionally slowly turning) or a
+ * picture stored on the tablet (BackgroundStore), shown by [mode] and darkened by [dim] percent.
+ */
+data class Background(
+    val type: String = "theme",
+    val color: String = "#202020",
+    val colors: List<String> = listOf("#1d2b3a", "#3a1d2e"),
+    val angle: Int = 135,
+    val animate: Boolean = false,
+    val image: String? = null,
+    val mode: String = "fill",
+    val dim: Int = 0,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("type", type).put("color", color).put("colors", JSONArray(colors))
+        .put("angle", angle).put("animate", animate).put("image", image ?: "")
+        .put("mode", mode).put("dim", dim)
+
+    companion object {
+        val TYPES = setOf("theme", "color", "gradient", "image")
+        val MODES = setOf("fill", "fit", "stretch", "tile", "center")
+        private val HEX = Regex("#[0-9a-fA-F]{6}")
+
+        fun fromJson(json: JSONObject): Background {
+            val colors = json.optJSONArray("colors")?.let { a -> (0 until a.length()).map { a.optString(it) } }
+                ?.filter { it.matches(HEX) }?.takeIf { it.size >= 2 }
+            return Background(
+                type = json.optString("type").takeIf { it in TYPES } ?: "theme",
+                color = json.optString("color").takeIf { it.matches(HEX) } ?: "#202020",
+                colors = colors?.take(3) ?: Background().colors,
+                angle = json.optInt("angle", 135).mod(360),
+                animate = json.optBoolean("animate"),
+                // Only a bare file name from BackgroundStore, never a path.
+                image = json.optString("image").takeIf { it.matches(Regex("[A-Za-z0-9._-]+")) },
+                mode = json.optString("mode").takeIf { it in MODES } ?: "fill",
+                dim = json.optInt("dim").coerceIn(0, 90),
+            )
+        }
+    }
+}
 
 enum class Orientation(val key: String) {
     LANDSCAPE("landscape"),

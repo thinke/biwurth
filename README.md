@@ -7,7 +7,9 @@ Android 16, 4 GB RAM); any Android 11+ tablet should do.
 
 - **Panel** (the tablet screen): pages of tiles you swipe between: clock, entity value,
   toggle/button, history graph (several sensors per graph), weather, calendar, camera. Any
-  resolution and orientation, with colour themes and the Inter font (tabular figures).
+  resolution and orientation, with colour themes and the Inter font (tabular figures). The
+  background is the theme colour, a colour, a gradient (optionally slowly turning) or a picture
+  (fill, fit, stretch, tile, centre, dimmed), and tiles can be see-through.
 - **Website** on the tablet (`http://<tablet>:2323`): drag-and-drop layout editor, pages,
   orientation, grid and theme, plus Home Assistant, MQTT and screen settings.
 - **MQTT device**: the tablet appears in Home Assistant with a screen switch, brightness,

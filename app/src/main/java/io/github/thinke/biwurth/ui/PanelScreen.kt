@@ -59,8 +59,10 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
         LocalPanelTheme provides theme,
         LocalTextStyle provides panelTextStyle(layout.theme.font),
         LocalTextScale provides layout.theme.textScale,
+        LocalTileOpacity provides layout.theme.tileOpacity / 100f,
     ) {
-        Box(Modifier.fillMaxSize().background(theme.background)) {
+        Box(Modifier.fillMaxSize()) {
+            PanelBackground(layout.background, theme)
             // Keep every page composed: rebuilding one on each swipe made switching pages stutter.
         HorizontalPager(
             pager,

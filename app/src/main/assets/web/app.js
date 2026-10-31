@@ -2,19 +2,19 @@
 
 // Tile types: label, default size in cells, settings, and which entity domains suit them.
 const TYPES = {
-  clock: { label: 'Clock', size: [4, 2], fields: ['date', 'textSize'] },
-  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'textSize'] },
+  clock: { label: 'Clock', size: [4, 2], fields: ['date', 'opacity', 'textSize'] },
+  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'opacity', 'textSize'] },
   toggle: {
-    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'textSize'],
+    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'opacity', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
-    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'hours', 'unit', 'decimals', 'textSize'],
+    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'hours', 'unit', 'decimals', 'opacity', 'textSize'],
     domains: ['sensor', 'input_number', 'number'], multi: 'line', labels: true,
   },
-  weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'textSize'], domains: ['weather'] },
-  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'days', 'textSize'], domains: ['calendar'], multi: 'calendar' },
-  camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'textSize'] },
+  weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'textSize'], domains: ['weather'] },
+  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'days', 'opacity', 'textSize'], domains: ['calendar'], multi: 'calendar' },
+  camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
 };
 
 const FIELDS = {
@@ -28,6 +28,7 @@ const FIELDS = {
   camera: { label: 'Camera', placeholder: 'go2rtc stream name or rtsp:// URL', list: 'cameraList' },
   fullStream: { label: 'Full-screen stream (tap)', placeholder: 'Same as the tile', list: 'cameraList' },
   snapshot: { label: 'Snapshot URL', placeholder: 'From go2rtc' },
+  opacity: { label: 'Opacity (%)', type: 'number', placeholder: 'As set for all tiles' },
   textSize: {
     label: 'Text size',
     options: [['', 'Auto (fits the tile)'], ['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xl', 'Extra large']],
@@ -232,15 +233,22 @@ function renderBoard() {
   const aspect = boardAspect();
   board.style.aspectRatio = `${aspect}`;
   board.style.width = `min(100%, calc((100vh - 190px) * ${aspect}))`;
-  board.style.backgroundImage =
-    'linear-gradient(to right, #ffffff10 1px, transparent 1px), linear-gradient(to bottom, #ffffff10 1px, transparent 1px)';
-  board.style.backgroundSize = `calc(100% / ${layout.columns}) calc(100% / ${layout.rows})`;
+  const grid = 'linear-gradient(to right, #ffffff10 1px, transparent 1px), linear-gradient(to bottom, #ffffff10 1px, transparent 1px)';
+  const cell = `calc(100% / ${layout.columns}) calc(100% / ${layout.rows})`;
+  const bg = boardBackground();
+  board.style.backgroundColor = bg.color;
+  board.style.backgroundImage = [grid, ...bg.layers.map((l) => l.image)].join(', ');
+  board.style.backgroundSize = [cell, cell, ...bg.layers.map((l) => l.size)].join(', ');
+  board.style.backgroundRepeat = ['repeat', 'repeat', ...bg.layers.map((l) => l.repeat)].join(', ');
+  board.style.backgroundPosition = ['top left', 'top left', ...bg.layers.map((l) => l.position)].join(', ');
   board.replaceChildren(...page().tiles.map(tileElement));
 }
 
 function tileElement(tile) {
   const el = document.createElement('div');
   el.className = 'tile' + (tile.id === selectedId ? ' selected' : '');
+  const opacity = (tile.props.opacity !== undefined && tile.props.opacity !== '' ? Number(tile.props.opacity) : (layout.theme.tileOpacity ?? 100)) / 100;
+  el.style.backgroundColor = `rgba(26, 28, 31, ${opacity})`;
   place(el, tile);
   const ids = entityIds(tile);
   const e = ids.length === 1 ? entity(ids[0]) : null;
@@ -522,6 +530,8 @@ function renderLayoutForm() {
   $('#theme').value = layout.theme.preset;
   $('#font').value = layout.theme.font || 'inter';
   $('#textScale').value = String(layout.theme.textScale ?? 1);
+  $('#tileOpacity').value = layout.theme.tileOpacity ?? 100;
+  renderBackgroundForm();
   $('#accentDefault').checked = !layout.theme.accent;
   $('#accent').value = layout.theme.accent || THEME_ACCENTS[layout.theme.preset] || '#e0a030';
   $('#accent').disabled = !layout.theme.accent;
@@ -570,6 +580,7 @@ function updateTheme() {
     accent: $('#accentDefault').checked ? '' : $('#accent').value,
     font: $('#font').value,
     textScale: parseFloat($('#textScale').value),
+    tileOpacity: parseInt($('#tileOpacity').value, 10),
   };
   setDirty(true);
   renderLayoutForm();
@@ -577,11 +588,105 @@ function updateTheme() {
 $('#theme').addEventListener('change', updateTheme);
 $('#font').addEventListener('change', updateTheme);
 $('#textScale').addEventListener('change', updateTheme);
+$('#tileOpacity').addEventListener('input', () => { updateTheme(); renderBoard(); });
 $('#accent').addEventListener('input', updateTheme);
 $('#accentDefault').addEventListener('change', () => {
   if (!$('#accentDefault').checked) $('#accent').value = THEME_ACCENTS[$('#theme').value];
   updateTheme();
 });
+
+// ---- Background ---------------------------------------------------------------------------------
+
+const DEFAULT_BACKGROUND = { type: 'theme', color: '#202020', colors: ['#1d2b3a', '#3a1d2e'], angle: 135, animate: false, image: '', mode: 'fill', dim: 0 };
+const background = () => (layout.background = { ...DEFAULT_BACKGROUND, ...(layout.background || {}) });
+let bgImageUrl = null; // a blob: URL for the board preview; the picture needs the key to load
+let bgImageFor = null;
+
+function renderBackgroundForm() {
+  const b = background();
+  $('#bgType').value = b.type;
+  $('#bgColor').value = b.color;
+  $('#bgColor1').value = b.colors[0];
+  $('#bgColor2').value = b.colors[1];
+  $('#bgAngle').value = String(b.angle);
+  $('#bgAnimate').checked = b.animate;
+  $('#bgMode').value = b.mode;
+  $('#bgDim').value = b.dim;
+  $('#bgImageName').textContent = b.image ? 'Picture on the tablet' : 'No picture yet';
+  $('#bgColorRow').hidden = b.type !== 'color';
+  $('#bgGradientRow').hidden = b.type !== 'gradient';
+  $('#bgImageRow').hidden = b.type !== 'image';
+}
+
+function updateBackground() {
+  const b = background();
+  Object.assign(b, {
+    type: $('#bgType').value,
+    color: $('#bgColor').value,
+    colors: [$('#bgColor1').value, $('#bgColor2').value],
+    angle: parseInt($('#bgAngle').value, 10),
+    animate: $('#bgAnimate').checked,
+    mode: $('#bgMode').value,
+    dim: parseInt($('#bgDim').value, 10),
+  });
+  setDirty(true);
+  renderBackgroundForm();
+  renderBoard();
+}
+for (const id of ['#bgType', '#bgAngle', '#bgMode', '#bgAnimate']) $(id).addEventListener('change', updateBackground);
+for (const id of ['#bgColor', '#bgColor1', '#bgColor2', '#bgDim']) $(id).addEventListener('input', updateBackground);
+
+$('#bgUpload').addEventListener('click', () => $('#bgFile').click());
+$('#bgFile').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if (!file) return;
+  $('#bgImageName').textContent = 'Uploading…';
+  try {
+    const response = await fetch('/api/background/image', { method: 'PUT', headers: { Authorization: `Bearer ${key}` }, body: file });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || response.statusText);
+    background().image = data.image;
+    background().type = 'image';
+    setDirty(true);
+    renderBackgroundForm();
+    renderBoard();
+  } catch (e) {
+    alert(`Upload failed: ${e.message}`);
+    renderBackgroundForm();
+  }
+});
+
+async function loadBackgroundPreview(name) {
+  if (bgImageFor === name) return;
+  bgImageFor = name;
+  const response = await fetch(`/api/background/image/${name}`, { headers: { Authorization: `Bearer ${key}` } });
+  if (!response.ok || bgImageFor !== name) return;
+  if (bgImageUrl) URL.revokeObjectURL(bgImageUrl);
+  bgImageUrl = URL.createObjectURL(await response.blob());
+  renderBoard();
+}
+
+// The board shows the background as the tablet draws it (CSS), under the grid lines.
+function boardBackground() {
+  const b = background();
+  const dim = b.dim ? `linear-gradient(rgba(0,0,0,${b.dim / 100}), rgba(0,0,0,${b.dim / 100}))` : null;
+  const layers = [];
+  if (dim) layers.push({ image: dim, size: '100% 100%', repeat: 'no-repeat', position: 'center' });
+  if (b.type === 'gradient') {
+    layers.push({ image: `linear-gradient(${b.angle + 90}deg, ${b.colors[0]}, ${b.colors[1]})`, size: '100% 100%', repeat: 'no-repeat', position: 'center' });
+  } else if (b.type === 'image' && b.image) {
+    loadBackgroundPreview(b.image);
+    if (bgImageUrl && bgImageFor === b.image) {
+      const size = { fill: 'cover', fit: 'contain', stretch: '100% 100%', tile: 'auto', center: 'auto' }[b.mode];
+      layers.push({ image: `url(${bgImageUrl})`, size, repeat: b.mode === 'tile' ? 'repeat' : 'no-repeat', position: b.mode === 'tile' ? 'top left' : 'center' });
+    }
+  }
+  const color = b.type === 'color' ? b.color : (THEME_BACKGROUNDS[layout.theme.preset] || '#000');
+  return { layers, color };
+}
+
+const THEME_BACKGROUNDS = { dark: '#000000', graphite: '#16181c', nord: '#2e3440', forest: '#0f1a14', light: '#f2f2f0' };
 
 // A new grid scales every tile to it, keeping the layout's shape.
 function regrid() {

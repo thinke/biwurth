@@ -30,6 +30,11 @@ class LayoutCompiler(private val app: PanelApp) {
         val connected = app.ha.connected.value
         if (!connected) warnings += "Home Assistant isn't connected, so entities weren't checked or preloaded."
 
+        val background = layout.background
+        if (background.type == "image" && background.image?.let(app.backgrounds::file) == null) {
+            warnings += "The background picture is missing; the theme colour shows instead."
+        }
+
         for (page in layout.pages) {
             page.tiles.forEachIndexed { i, a ->
                 page.tiles.drop(i + 1).filter { b -> overlap(a, b) }.forEach { b ->
