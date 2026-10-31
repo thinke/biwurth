@@ -125,7 +125,8 @@ private fun SettingsCorner(onOpen: () -> Unit) {
     var taps by remember { mutableIntStateOf(0) }
     var firstTap by remember { mutableLongStateOf(0L) }
     Box(
-        Modifier.size(72.dp).pointerInput(Unit) {
+        // Large: in kiosk mode Android keeps the top ~30 px for the hidden status bar and eats taps there.
+        Modifier.size(96.dp).pointerInput(Unit) {
             detectTapGestures {
                 val now = System.currentTimeMillis()
                 if (now - firstTap > 3_000) {

@@ -55,6 +55,16 @@ object Provisioning {
         return Base64.encodeToString(digest, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
     }
 
+    /** [text] as a QR code bitmap, black on white with a quiet zone, for the tablet's own screens. */
+    fun qrBitmap(text: String, size: Int): android.graphics.Bitmap {
+        val hints = mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to 2)
+        val matrix = QRCodeWriter().encode(text, BarcodeFormat.QR_CODE, size, size, hints)
+        val pixels = IntArray(matrix.width * matrix.height) { i ->
+            if (matrix[i % matrix.width, i / matrix.width]) android.graphics.Color.BLACK else android.graphics.Color.WHITE
+        }
+        return android.graphics.Bitmap.createBitmap(pixels, matrix.width, matrix.height, android.graphics.Bitmap.Config.RGB_565)
+    }
+
     /** [text] as an SVG QR code, black on white with a quiet zone, for the website to show. */
     fun qrSvg(text: String): String {
         val hints = mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to 4)

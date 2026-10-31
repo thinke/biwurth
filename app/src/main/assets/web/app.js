@@ -71,9 +71,13 @@ async function api(method, path, body) {
   return data;
 }
 
+// Background refreshes keep failing until a key is entered: open the box once and leave what's
+// being typed alone (it used to be cleared every five seconds).
 function showLogin() {
+  if (!$('#login').hidden) return;
+  $('#loginError').hidden = !key; // a key was tried and refused
   $('#login').hidden = false;
-  $('#key').value = key;
+  $('#key').value = '';
   $('#key').focus();
 }
 
@@ -991,6 +995,7 @@ $('#sleepBtn').addEventListener('click', () => api('POST', '/api/sleep').then(re
 
 // ---- Start --------------------------------------------------------------------------------------
 
-setInterval(refreshStatus, 5000);
-setInterval(refreshEntities, 30000);
+const signedIn = () => $('#login').hidden;
+setInterval(() => signedIn() && refreshStatus(), 5000);
+setInterval(() => signedIn() && refreshEntities(), 30000);
 if (key) load().catch(() => {}); else showLogin();

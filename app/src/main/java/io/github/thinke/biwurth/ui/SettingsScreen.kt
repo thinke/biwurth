@@ -3,6 +3,10 @@ package io.github.thinke.biwurth.ui
 import android.app.Activity
 import android.net.ConnectivityManager
 import androidx.activity.compose.BackHandler
+import io.github.thinke.biwurth.Provisioning
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -133,9 +137,20 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                 UpdatesSection(app.updater, prefs)
 
                 Section("Website") {
-                    Text("Edit the layout and connect Home Assistant from a computer or phone on this network:")
-                    Mono("http://${ipAddress(activity) ?: "<tablet IP>"}:${WebServer.PORT}")
-                    Mono("Key: ${prefs.token}")
+                    val address = "http://${ipAddress(activity) ?: "<tablet IP>"}:${WebServer.PORT}"
+                    Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // Scanning opens the website already signed in, so nobody types the key.
+                        val qr = remember(address, prefs.token) {
+                            Provisioning.qrBitmap("$address/#key=${prefs.token}", 360).asImageBitmap()
+                        }
+                        Image(qr, contentDescription = "Website QR code", modifier = Modifier.size(160.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Scan with your phone to open the website, already signed in.")
+                            Mono(address)
+                            Mono("Key: ${prefs.token}")
+                            Hint("Anyone with this code or key can change the panel: show it only to people you trust.")
+                        }
+                    }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

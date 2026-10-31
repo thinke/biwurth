@@ -155,3 +155,4 @@ aside {
 }
 
 .qr svg { width: min(100%, 320px); height: auto; margin-top: 8px; border-radius: 6px; }
+.error { color: var(--danger); font-size: 13px; margin: 0; }
