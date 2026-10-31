@@ -29,6 +29,7 @@
         <button id="addTile">Add tile</button>
         <span class="hint">Drag a tile to move it, drag its corner to resize. Click a tile to edit it.</span>
       </div>
+      <div id="memoryWarning" class="report warn" hidden></div>
       <div id="report" class="report" hidden></div>
       <div id="boardWrap"><div id="board"></div></div>
     </section>
@@ -202,6 +203,7 @@
             <option value="4">4</option><option value="6">6</option><option value="0">None (snapshots only)</option>
           </select>
         </label>
+        <p id="liveHint" class="muted"></p>
         <label class="check"><input id="keepLiveAsleep" type="checkbox"> Keep cameras live while the backlight is off</label>
         <p class="muted">Then a touch shows live video at once, at the cost of streaming all the time.</p>
         <button class="primary">Save</button>

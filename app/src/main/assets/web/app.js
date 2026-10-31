@@ -118,11 +118,46 @@ async function refreshStatus() {
     $('#status').replaceChildren(
       chip('Screen', s.screen), ' · ', chip('Home Assistant', s.ha + (s.entities ? ` (${s.entities} entities)` : '')), ' · ', chip('MQTT', s.mqtt),
       ...(s.ownEntities ? [' · ', chip('Sources', `${s.ownEntities} values`)] : []),
+      ...(s.memory ? [' · ', chip('Memory', `${s.memory.appMb} MB, ${gb(s.memory.deviceAvailableMb)} free`)] : []),
     );
+    showMemory(s);
     $('#mqttStatus').textContent = `Status: ${s.mqtt}`;
   } catch (e) {
     $('#status').textContent = e.message;
   }
+}
+
+const gb = (mb) => (mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`);
+
+// Warns when the tablet is close to full with the layout it shows, and says what uses the most:
+// live camera streams, set in the Cameras tab.
+function showMemory(s) {
+  const m = s.memory;
+  const c = s.cameras;
+  if (!m || !c) return;
+  const box = $('#memoryWarning');
+  box.hidden = !m.warning;
+  if (m.warning) {
+    const summary = `The tablet is close to full with this layout: ${gb(m.deviceAvailableMb)} free of ${gb(m.deviceTotalMb)}, the panel uses ${m.appMb} MB. `;
+    if (c.live > 0) {
+      const open = document.createElement('a');
+      open.href = '#';
+      open.textContent = 'Cameras tab';
+      open.addEventListener('click', (e) => { e.preventDefault(); showTab('cameras'); });
+      box.replaceChildren(
+        summary,
+        `${c.live} live camera stream${c.live === 1 ? '' : 's'} play now, each roughly 20–60 MB: lower Live streams at once in the `,
+        open,
+        m.suggestedMaxLive < c.maxLive ? ` (${m.suggestedMaxLive} suits this tablet).` : '.',
+      );
+    } else {
+      box.replaceChildren(summary, 'Fewer pages, graphs or background pictures help.');
+    }
+  }
+  const hint = $('#liveHint');
+  hint.textContent = `${c.tiles ? `${c.tiles} camera tile${c.tiles === 1 ? '' : 's'} on the panel, ${c.live} live (the others show snapshots).` : 'No camera tiles on the panel.'} `
+    + `This tablet has ${gb(m.deviceTotalMb)} of memory: up to ${m.suggestedMaxLive} live stream${m.suggestedMaxLive === 1 ? ' suits' : 's suit'} it.`;
+  hint.classList.toggle('over', c.maxLive > m.suggestedMaxLive);
 }
 
 function chip(label, value) {

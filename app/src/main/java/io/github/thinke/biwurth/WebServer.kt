@@ -13,6 +13,7 @@ import io.github.thinke.biwurth.config.Page
 import io.github.thinke.biwurth.config.SourceConfig
 import io.github.thinke.biwurth.config.TileTypes
 import io.github.thinke.biwurth.ui.CameraStatus
+import io.github.thinke.biwurth.ui.cameraTilesOnPanel
 import io.github.thinke.biwurth.ui.PanelSnapshot
 import io.github.thinke.biwurth.ui.PanelTheme
 import io.github.thinke.biwurth.update.UpdateState
@@ -329,6 +330,13 @@ class WebServer(private val app: PanelApp) {
         .put("entities", app.sources.homeAssistants.value.values.sumOf { it.entities.value.size })
         .put("ownEntities", app.sources.entities.value.size)
         .put("memory", memory())
+        .put(
+            "cameras",
+            JSONObject()
+                .put("tiles", cameraTilesOnPanel())
+                .put("maxLive", app.config.cameras.value.maxLive)
+                .put("live", minOf(cameraTilesOnPanel(), app.config.cameras.value.maxLive)),
+        )
 
     // The panel's own memory and how much the tablet has left, in MB: PSS counts the shared parts
     // fairly, so it's the figure to watch over time.
@@ -346,6 +354,22 @@ class WebServer(private val app: PanelApp) {
             .put("deviceAvailableMb", mb(device.availMem))
             .put("deviceTotalMb", mb(device.totalMem))
             .put("deviceLow", device.lowMemory)
+            // Close to full: Android says so, under 15 % is left, or our Java heap nears its limit.
+            .put(
+                "warning",
+                device.lowMemory || device.availMem < device.totalMem * 0.15 ||
+                    runtime.totalMemory() - runtime.freeMemory() > runtime.maxMemory() * 0.85,
+            )
+            .put("suggestedMaxLive", suggestedMaxLive(device.totalMem))
+    }
+
+    // Live streams this tablet's RAM carries comfortably, each a hardware decoder and its frames
+    // (roughly 20-60 MB a stream), next to Android and the panel.
+    private fun suggestedMaxLive(totalBytes: Long): Int = when {
+        totalBytes <= 2L shl 30 -> 1
+        totalBytes <= 3L shl 30 -> 2
+        totalBytes <= 4L shl 30 -> 4
+        else -> 6
     }
 
     // "Connected" for one, "2 of 3 connected" for several, "None" without any.

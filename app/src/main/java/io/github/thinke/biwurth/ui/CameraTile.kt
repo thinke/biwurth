@@ -167,6 +167,9 @@ object CameraStatus {
 // Tiles in the order they asked; the first maxLive stream, the rest show snapshots.
 private val liveQueue = mutableStateListOf<String>()
 
+/** Camera tiles on the panel (every page is kept composed); the first maxLive of them play live. */
+fun cameraTilesOnPanel(): Int = liveQueue.size
+
 @Composable
 private fun hasLiveSlot(id: String, max: Int): Boolean {
     DisposableEffect(id) {

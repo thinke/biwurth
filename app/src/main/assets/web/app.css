@@ -73,6 +73,8 @@ main {
   color: var(--muted);
 }
 .report.warn { border-color: var(--accent); }
+.report a { color: var(--accent); }
+#liveHint.over { color: var(--accent); }
 .report ul { margin: 4px 0 0; padding-left: 18px; color: var(--text); }
 .report ul:empty { display: none; }
 

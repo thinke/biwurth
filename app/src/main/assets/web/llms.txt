@@ -62,7 +62,9 @@ page id or its number from 0):
 ## Panel
 
 - GET /api/status: screen state, page shown, Home Assistant and MQTT connection, and `memory`:
-  the panel's own use (appMb, PSS) and what the tablet has left (deviceAvailableMb), in MB.
+  the panel's own use (appMb, PSS), what the tablet has left (deviceAvailableMb), `warning` when
+  it's close to full, and `suggestedMaxLive` live camera streams for its RAM; `cameras`: camera
+  tiles on the panel, the live limit (`maxLive`, set with PUT /api/cameras) and how many play.
 - GET /state, POST /wake, POST /sleep: the screen.
 - GET /api/config: layout, MQTT, cameras and screen settings in one.
 - GET /api/logs: the last 500 log lines (plain text); GET /api/logs/all for all of them.
