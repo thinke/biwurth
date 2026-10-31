@@ -74,9 +74,14 @@ class Updater(private val context: Context, private val prefs: Prefs) {
     // Debug builds are signed with the debug key, so a release could never replace them.
     val canUpdate: Boolean get() = !BuildConfig.DEBUG
 
-    private fun checkIfDue() {
+    /** When the panel comes on screen, as SnapTV does on opening, unless we checked a few minutes ago. */
+    fun checkOnStart() = checkIfOlderThan(START_MIN_INTERVAL_MS)
+
+    private fun checkIfDue() = checkIfOlderThan(CHECK_INTERVAL_MS)
+
+    private fun checkIfOlderThan(ms: Long) {
         if (!canUpdate || !prefs.updateCheck) return
-        if (System.currentTimeMillis() - prefs.lastUpdateCheck < CHECK_INTERVAL_MS) return
+        if (System.currentTimeMillis() - prefs.lastUpdateCheck < ms) return
         scope.launch {
             check()
             val available = _state.value as? UpdateState.Available
@@ -270,6 +275,7 @@ class Updater(private val context: Context, private val prefs: Prefs) {
     companion object {
         private const val TAG = "biwurth.Update"
         private const val CHECK_INTERVAL_MS = 20 * 60 * 60 * 1000L
+        private const val START_MIN_INTERVAL_MS = 10 * 60 * 1000L
         @Volatile internal var instance: Updater? = null
     }
 }

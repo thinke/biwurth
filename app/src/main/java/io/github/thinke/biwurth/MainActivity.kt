@@ -26,6 +26,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import io.github.thinke.biwurth.config.Orientation
 import io.github.thinke.biwurth.ui.PanelScreen
 import io.github.thinke.biwurth.ui.SettingsScreen
+import io.github.thinke.biwurth.ui.UpdatePrompt
+import io.github.thinke.biwurth.update.UpdateState
 
 class MainActivity : ComponentActivity() {
     private val screen get() = panel.screen
@@ -79,6 +81,20 @@ class MainActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize().background(Color.Black)) {
                     PanelScreen(layout, screen.page, onOpenSettings = { showSettings = true })
                     if (showSettings) SettingsScreen(activity = this@MainActivity, onClose = { showSettings = false })
+                    // A found update asks over the panel, as in SnapTV, until dismissed for that release.
+                    val update by panel.updater.state.collectAsState()
+                    var dismissedFor by rememberSaveable { mutableStateOf<String?>(null) }
+                    val shown = when (val u = update) {
+                        is UpdateState.Available -> u.release.version.toString().takeIf { !panel.updater.isSkipped(u.release) }
+                        is UpdateState.Downloading -> u.release.version.toString()
+                        is UpdateState.Installing -> u.release.version.toString()
+                        is UpdateState.NeedsPermission -> u.release.version.toString()
+                        is UpdateState.Failed -> u.release?.version?.toString()
+                        else -> null
+                    }
+                    if (shown != null && shown != dismissedFor && state == ScreenState.AWAKE && !showSettings) {
+                        UpdatePrompt(panel.updater, onClose = { dismissedFor = shown })
+                    }
                     // Some panels keep a faint glow at "backlight off"; black pixels hide it.
                     if (state != ScreenState.AWAKE) Box(Modifier.fillMaxSize().background(Color.Black))
                 }
@@ -90,6 +106,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         if (panel.prefs.kiosk) Kiosk.enter(this)
         screen.userActivity()
+        panel.updater.checkOnStart()
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {

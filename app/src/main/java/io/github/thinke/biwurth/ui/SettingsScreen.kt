@@ -111,6 +111,8 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
             }
             }
 
+            UpdatesSection(app.updater, prefs)
+
             Section("Website") {
                 Text("Edit the layout and connect Home Assistant from a computer or phone on this network:")
                 Mono("http://${ipAddress(activity) ?: "<tablet IP>"}:${WebServer.PORT}")
