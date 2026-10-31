@@ -197,6 +197,9 @@ class WebServer(private val app: PanelApp) {
                     JSONObject()
                         .put("version", version.toString())
                         .put("debugBuild", BuildConfig.DEBUG)
+                        // What the code holds, so it can be checked by eye (never the Wi-Fi password).
+                        .put("apk", payload.getString("android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION"))
+                        .put("checksum", payload.getString("android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"))
                         .put("svg", Provisioning.qrSvg(payload.toString())),
                 )
             }

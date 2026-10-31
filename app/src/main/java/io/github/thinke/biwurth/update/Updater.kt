@@ -12,6 +12,7 @@ import android.provider.Settings
 import android.util.Log
 import io.github.thinke.biwurth.BuildConfig
 import io.github.thinke.biwurth.Kiosk
+import io.github.thinke.biwurth.MainActivity
 import io.github.thinke.biwurth.Prefs
 import io.github.thinke.biwurth.update.Releases.toJson
 import kotlinx.coroutines.CoroutineScope
@@ -291,5 +292,18 @@ class InstallResultReceiver : BroadcastReceiver() {
             return
         }
         Updater.instance?.onInstallResult(status, intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE))
+    }
+}
+
+/**
+ * Android restarts biwurth after it updates itself, which ends kiosk mode and leaves the system
+ * launcher on screen; come straight back instead.
+ */
+class UpdatedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        context.startActivity(
+            Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }

@@ -757,7 +757,7 @@ $('#provQrBtn').addEventListener('click', async () => {
     $('#provQr').innerHTML = result.svg;
     $('#provInfo').textContent = result.debugBuild
       ? `This panel runs a debug build: its key matches no GitHub release, so a tablet can't use this code.`
-      : `Installs biwurth ${result.version} from GitHub.`;
+      : `Installs biwurth ${result.version} from ${result.apk}, signed with key ${result.checksum}.`;
   } catch (e) {
     $('#provInfo').textContent = e.message;
   }
