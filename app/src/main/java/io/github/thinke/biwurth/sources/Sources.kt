@@ -35,9 +35,10 @@ class Sources(private val config: ConfigStore, filesDir: File) {
     val status: StateFlow<Map<String, String>> = _status
 
     val history = SourceHistory(File(filesDir, "history"))
+    val telemetry = Telemetry(File(filesDir, "telemetry"))
 
-    /** What a tap on a tile showing that entity does (Modbus coil, MQTT command). */
-    private val actions = ConcurrentHashMap<String, suspend () -> Unit>()
+    /** What a tap on a tile showing that entity does (Modbus coil, MQTT command), and whose it is. */
+    private val actions = ConcurrentHashMap<String, Pair<SourceConfig, suspend () -> Unit>>()
 
     fun start() {
         scope.launch { config.sources.collectLatest(::run) }
@@ -68,12 +69,22 @@ class Sources(private val config: ConfigStore, filesDir: File) {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                status(source, "Error: ${e.message ?: e.javaClass.simpleName}")
-                EventLog.e("source", "${source.name} (${source.type}): ${e.message ?: e.javaClass.simpleName}, retrying in ${backoff / 1000} s")
+                val reason = describe(e)
+                status(source, "Error: $reason")
+                EventLog.e("source", "${source.name} (${source.type}): $reason, retrying in ${backoff / 1000} s")
+                telemetry.event(source, "Error: $reason")
+                failing.add(source.id)
             }
             delay(backoff)
             backoff = (backoff * 2).coerceAtMost(5 * 60_000L)
         }
+    }
+
+    // Java's names for the usual network failures, in words.
+    private fun describe(e: Exception) = when (e) {
+        is java.io.EOFException -> "the device closed the connection"
+        is java.net.SocketTimeoutException -> "no answer in time"
+        else -> e.message ?: e.javaClass.simpleName
     }
 
     fun entityId(source: SourceConfig, field: JSONObject) = "src.${source.id}.${source.fieldId(field)}"
@@ -85,23 +96,35 @@ class Sources(private val config: ConfigStore, filesDir: File) {
         field.optString("unit").takeIf { it.isNotEmpty() }?.let { attributes.put("unit_of_measurement", it) }
         _entities.update { it + (id to HomeAssistant.Entity(id, value, attributes)) }
         value.toFloatOrNull()?.let { history.record(id, System.currentTimeMillis(), it) }
+        telemetry.reading(source, id.substringAfterLast('.'), value)
     }
 
     fun status(source: SourceConfig, text: String) {
         _status.update { it + (source.id to text) }
     }
 
+    // Sources that failed since they last worked, for the "Working again" event.
+    private val failing = ConcurrentHashMap.newKeySet<String>()
+
     fun ok(source: SourceConfig, values: Int) {
+        if (failing.remove(source.id)) telemetry.event(source, "Working again")
         status(source, "OK: $values value${if (values == 1) "" else "s"} at ${java.time.LocalTime.now().withNano(0)}")
     }
 
-    fun setAction(entityId: String, action: suspend () -> Unit) {
-        actions[entityId] = action
+    fun setAction(source: SourceConfig, entityId: String, action: suspend () -> Unit) {
+        actions[entityId] = source to action
     }
 
+    /** A tap from the panel; telemetry records it, and whether it worked. */
     fun press(entityId: String) {
-        val action = actions[entityId] ?: return
-        scope.launch { runCatching { action() } }
+        val (source, action) = actions[entityId] ?: return
+        val field = entityId.substringAfterLast('.')
+        val before = _entities.value[entityId]?.state
+        scope.launch {
+            runCatching { action() }
+                .onSuccess { telemetry.event(source, "Pressed $field on the panel (was ${before ?: "unknown"})") }
+                .onFailure { telemetry.event(source, "Pressing $field failed: ${it.message}") }
+        }
     }
 
     fun history(entityId: String, hours: Int) = history.slice(entityId, hours)

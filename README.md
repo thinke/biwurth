@@ -68,6 +68,12 @@ without Home Assistant and survive restarts.
 | Status checks | interval | an `http(s)://` URL (up below status 400) or `host:port` (TCP); also `<field>_ms` |
 | Modbus TCP | host, port, unit id, interval | holding/input register (int16, uint16, int32, uint32, float32, word order, scale) or coil/discrete input; a coil is a button that switches it |
 
+Each source can also **record telemetry**: its readings (on every change, or every reading)
+and what happened (presses from the panel, errors, "working again"), one CSV file per source
+per day (`time,field,value`), kept for a set number of days and downloadable from the source on
+the website: today, 7 days or everything. "Every reading" of 10 Modbus fields every 10 s is
+about 3 MB a day.
+
 Backups include the sources; HTTP headers only with "include secrets", as they often hold keys.
 
 ## Planned

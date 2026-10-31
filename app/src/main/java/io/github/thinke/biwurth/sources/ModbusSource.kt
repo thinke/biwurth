@@ -34,7 +34,7 @@ internal class ModbusSource(private val source: SourceConfig, private val source
             val output = DataOutputStream(socket.getOutputStream().buffered())
             for (field in source.fields.filter { it.optString("kind") == "coil" }) {
                 val id = sources.entityId(source, field)
-                sources.setAction(id) {
+                sources.setAction(source, id) {
                     val on = sources.entities.value[id]?.state == "on"
                     lock.withLock {
                         runInterruptible { request(input, output, unit, 5, field.optInt("address"), if (on) 0x0000 else 0xFF00) }

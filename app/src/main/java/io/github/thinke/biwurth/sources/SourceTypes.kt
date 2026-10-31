@@ -116,7 +116,7 @@ internal class MqttSource(
             for (field in source.fields) {
                 val command = field.optString("commandTopic").trim().ifEmpty { continue }
                 val id = sources.entityId(source, field)
-                sources.setAction(id) {
+                sources.setAction(source, id) {
                     val on = sources.entities.value[id]?.state?.lowercase() in setOf("on", "true", "1")
                     val payload = if (on) field.optString("payloadOff", "OFF") else field.optString("payloadOn", "ON")
                     client.publish(command, payload.toByteArray(), 1, false)

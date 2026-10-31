@@ -1008,6 +1008,32 @@ function sourceCard(source, index) {
     card.append(labelled(label, el));
   }
 
+  // Telemetry: every source can record its readings and what happened, as CSV per day.
+  const telemetryRow = document.createElement('div');
+  telemetryRow.className = 'row';
+  const mode = select([['off', 'Off'], ['changes', 'Changes'], ['every', 'Every reading']], source.settings.telemetry || 'off');
+  mode.addEventListener('change', () => { source.settings.telemetry = mode.value; });
+  const keep = input(source.settings.keepDays ?? 30, '30', (v) => { source.settings.keepDays = v; });
+  keep.type = 'number';
+  telemetryRow.append(labelled('Record telemetry', mode), labelled('Keep (days)', keep));
+  card.append(telemetryRow);
+  if (source.telemetryDays) {
+    const files = document.createElement('div');
+    files.className = 'row';
+    const info = document.createElement('span');
+    info.className = 'muted';
+    info.textContent = `${source.telemetryDays} day${source.telemetryDays === 1 ? '' : 's'}, ${(source.telemetryBytes / 1024).toFixed(0)} KB · Download CSV:`;
+    files.append(info);
+    for (const [days, label] of [[1, 'today'], [7, '7 days'], [3650, 'all']]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      b.addEventListener('click', () => downloadTelemetry(source, days));
+      files.append(b);
+    }
+    card.append(files);
+  }
+
   const table = document.createElement('table');
   const header = document.createElement('tr');
   for (const [, label] of type.columns) {
@@ -1052,6 +1078,17 @@ function sourceCard(source, index) {
   return card;
 }
 
+async function downloadTelemetry(source, days) {
+  const response = await fetch(`/api/telemetry/${source.id}?days=${days}`, { headers: { Authorization: `Bearer ${key}` } });
+  if (!response.ok) { alert('Download failed'); return; }
+  const url = URL.createObjectURL(await response.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `biwurth-${source.id}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 $('#sourceAdd').addEventListener('click', () => {
   const type = $('#sourceType').value;
   sources.push({ type, name: `${SOURCE_TYPES[type].label.split(' ')[0]} ${sources.length + 1}`, enabled: true, settings: {}, fields: [{}] });
@@ -1061,7 +1098,7 @@ $('#sourceAdd').addEventListener('click', () => {
 $('#sourcesSave').addEventListener('click', async () => {
   // Numbers where the tablet expects numbers.
   for (const s of sources) {
-    for (const key of ['interval', 'port', 'unit']) if (s.settings[key] !== undefined && s.settings[key] !== '') s.settings[key] = Number(s.settings[key]);
+    for (const key of ['interval', 'port', 'unit', 'keepDays']) if (s.settings[key] !== undefined && s.settings[key] !== '') s.settings[key] = Number(s.settings[key]);
     for (const f of s.fields) for (const key of ['address', 'scale']) if (f[key] !== undefined && f[key] !== '') f[key] = Number(f[key]);
     s.id = slug(s.id || s.name);
   }

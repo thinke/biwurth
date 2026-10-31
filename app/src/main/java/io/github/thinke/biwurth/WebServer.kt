@@ -129,6 +129,13 @@ class WebServer(private val app: PanelApp) {
 
         val screen = app.screen
         // Background pictures for the website's preview: /api/background/image/<file name>.
+        // A source's telemetry as CSV: /api/telemetry/<source id>?days=N.
+        if (request.method == "GET" && request.path.startsWith("/api/telemetry/")) {
+            val id = request.path.substringAfterLast('/')
+            if (app.config.sources.value.none { it.id == id }) return json(404, error("No such source"))
+            val days = request.query.split('&').firstOrNull { it.startsWith("days=") }?.substringAfter('=')?.toIntOrNull() ?: 7
+            return Response(200, "text/csv; charset=utf-8", app.sources.telemetry.csv(id, days.coerceIn(1, 3650)).toByteArray())
+        }
         if (request.method == "GET" && request.path.startsWith("/api/background/image/")) {
             val file = app.backgrounds.file(request.path.substringAfterLast('/')) ?: return json(404, error("Not found"))
             val type = when (file.extension) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
@@ -424,6 +431,10 @@ class WebServer(private val app: PanelApp) {
             source.toJson()
                 .put("status", status[source.id] ?: if (source.enabled) "Starting…" else "Off")
                 .put("entities", JSONArray(source.fields.map { "src.${source.id}.${source.fieldId(it)}" }))
+                .apply {
+                    val (days, bytes) = app.sources.telemetry.usage(source.id)
+                    put("telemetryDays", days).put("telemetryBytes", bytes)
+                }
         }
         return JSONObject()
             .put("ha", JSONObject().put("enabled", ha.enabled).put("configured", ha.configured).put("status", app.ha.status.value))
