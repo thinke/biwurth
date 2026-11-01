@@ -9,6 +9,9 @@ import org.json.JSONObject
  * props do) and TYPES/FIELDS in assets/web/app.js (the editor's forms).
  */
 object TileTypes {
+    /** The built-in icons (assets/icons), for tiles' "icon". */
+    val ICON_NAMES = listOf("bed", "bolt", "bulb", "calendar", "coffee", "computer", "drop", "fan", "gauge", "home", "moon", "plug", "power", "snowflake", "sun", "thermometer", "tv")
+
     class Prop(
         val key: String,
         val kind: String,
@@ -43,6 +46,11 @@ object TileTypes {
         "background", "enum", "\"none\" draws the tile without its card, straight on the panel's background. A toggle still lights up when on.",
         listOf("", "none"),
     )
+    private val icon = Prop(
+        "icon", "enum",
+        "Icon in the compact layout (theme.tiles.icons): default picks one for the entity; \"none\" for none.",
+        listOf("", "none") + ICON_NAMES,
+    )
     private val unit = Prop("unit", "text", "Unit shown after the value. Default: the entity's unit_of_measurement.")
     private val decimals = Prop("decimals", "integer", "Decimals shown. Default: as Home Assistant reports it.")
 
@@ -55,7 +63,7 @@ object TileTypes {
         Type(
             "entity", "Entity value", "One entity's current state with its name: a temperature, a power reading, a door.",
             size = 3 to 2, minSize = 2 to 1,
-            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, unit, decimals, opacity, background, textSize),
+            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, icon, unit, decimals, opacity, background, textSize),
         ),
         Type(
             "toggle", "Toggle / button",
@@ -65,6 +73,7 @@ object TileTypes {
             props = listOf(
                 Prop("entity", "entity id", "The entity tapping controls.", required = true),
                 name,
+                icon,
                 Prop("measurement", "entity id", "Optional numeric entity shown under the name, e.g. sensor.coffee_maker_power."),
                 unit, decimals, opacity, background, textSize,
             ),

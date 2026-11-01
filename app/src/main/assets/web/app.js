@@ -3,9 +3,9 @@
 // Tile types: label, default size in cells, settings, and which entity domains suit them.
 const TYPES = {
   clock: { label: 'Clock', size: [4, 2], fields: ['date', 'opacity', 'textSize'] },
-  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'opacity', 'background', 'textSize'] },
+  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'icon', 'unit', 'decimals', 'opacity', 'background', 'textSize'] },
   toggle: {
-    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'textSize'],
+    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'icon', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
@@ -43,6 +43,7 @@ const FIELDS = {
     options: [['', 'Auto (fits the tile)'], ['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xl', 'Extra large']],
   },
   fit: { label: 'Picture', options: [['', 'Fill the tile'], ['contain', 'Show all of it']] },
+  icon: { label: 'Icon (compact layout)', options: [['', 'For the entity'], ['none', 'None'], ...[["bed", "bed"], ["bolt", "bolt"], ["bulb", "bulb"], ["calendar", "calendar"], ["coffee", "coffee"], ["computer", "computer"], ["drop", "drop"], ["fan", "fan"], ["gauge", "gauge"], ["home", "home"], ["moon", "moon"], ["plug", "plug"], ["power", "power"], ["snowflake", "snowflake"], ["sun", "sun"], ["thermometer", "thermometer"], ["tv", "tv"]]] },
   background: { label: 'Background', options: [['', 'As the layout (Tiles)'], ['card', 'Card'], ['none', 'None (on the panel background)']] },
 };
 
@@ -716,6 +717,9 @@ function renderLayoutForm() {
   $('#graphGrid').checked = !!tiles.graphGrid;
   $('#listDividers').checked = !!tiles.listDividers;
   $('#calendarColors').checked = tiles.calendarColors ?? true;
+  $('#tileLayout').value = tiles.tileLayout || 'stacked';
+  $('#iconStyle').value = tiles.icons || 'none';
+  $('#buttonShape').value = tiles.buttonShape || 'card';
   renderBackgroundForm();
   $('#accentDefault').checked = !layout.theme.accent;
   $('#accent').value = layout.theme.accent || THEME_ACCENTS[layout.theme.preset] || '#e0a030';
@@ -785,12 +789,15 @@ function updateTheme() {
       graphGrid: $('#graphGrid').checked,
       listDividers: $('#listDividers').checked,
       calendarColors: $('#calendarColors').checked,
+      tileLayout: $('#tileLayout').value,
+      icons: $('#iconStyle').value,
+      buttonShape: $('#buttonShape').value,
     },
   };
   setDirty(true);
   renderLayoutForm();
 }
-for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid', '#listDividers', '#calendarColors']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
+for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid', '#listDividers', '#calendarColors', '#tileLayout', '#iconStyle', '#buttonShape']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
 for (const id of ['#radius', '#cardPadding']) $(id).addEventListener('change', updateTheme);
 
 // Picking an installed theme puts its whole look on the layout; a built-in preset only its colours.

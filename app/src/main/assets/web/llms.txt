@@ -62,8 +62,15 @@ overrides) and `tiles`, how tiles are drawn:
     toggleStyle fill (lights up) | switch (a switch, card unchanged)
     clockWeight thin|light|regular       graphGrid, graphFill true|false   graphLineWidth (dp)
     graphColors ["#rrggbb", …] (line colours; empty = accent, then built-in ones)
+    tileLayout stacked (name over a big number) | compact (icon beside name and value)
+    icons none | badge (tinted circle, Mushroom) | bubble (plain circle, Bubble Card)
+    buttonShape card | pill (value and toggle tiles fully rounded)
+    toggleStyle also icon (only the icon lights up when on)
     listDividers (lines between calendar events)
     calendarColors (a tile of several calendars marks each event in its calendar's graphColors colour)
+
+Value and toggle tiles take `props.icon`: one of bed, bolt, bulb, calendar, coffee, computer, drop, fan, gauge, home, moon, plug, power, snowflake, sun, thermometer, tv, or "none"; by
+default the compact layout picks one from the entity (temperature: thermometer, power: bolt, …).
 
 Calendar tiles show today's events with the date in the accent colour and later ones muted; text
 grows with the tile's width.

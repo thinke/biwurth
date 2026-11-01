@@ -1,0 +1,9 @@
+{"id": "mushroom-dark", "name": "Mushroom Dark",
+ "description": "Mushroom cards on Home Assistant's default dark theme: tinted icon badges, 12 px cards on near-black, blue readings, orange when on, Home Assistant's graph colours.",
+ "dark": true, "page": "#111111", "surface": "#1c1c1c", "text": "#e1e1e1", "textSecondary": "#9b9b9b",
+ "primary": "#ff9800", "onPrimary": "#111111", "border": "#2c2c2c", "icon": "#2196f3",
+ "radius": 12, "padding": 12, "gap": 8, "borderWidth": 1, "shadow": 0,
+ "headingWeight": "medium", "headingColor": "text", "cardHeaderLine": false, "numberWeight": "regular", "clockWeight": "regular",
+ "toggle": "icon", "tileLayout": "compact", "icons": "badge", "buttonShape": "card",
+ "chartColors": ["#2196f3", "#984ea3", "#00d2d5", "#ff7f00", "#af8d00", "#7f80cd"],
+ "chartGrid": true, "chartFill": false, "chartLineWidth": 2, "listLines": false}

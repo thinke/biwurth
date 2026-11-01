@@ -1,0 +1,8 @@
+{"id": "bubble-card", "name": "Bubble Card",
+ "description": "After Bubble Card on Home Assistant's dark theme: pill buttons with a round icon bubble that fill with the accent when on, bold names, soft rounded cards for graphs and calendars, Home Assistant's graph colours.",
+ "dark": true, "page": "#111111", "surface": "#232323", "text": "#e1e1e1", "textSecondary": "#9b9b9b",
+ "primary": "#ff9800", "onPrimary": "#111111", "border": "#2c2c2c", "icon": "#ff9800",
+ "radius": 24, "padding": 12, "gap": 8, "borderWidth": 0, "shadow": 0,
+ "headingWeight": "bold", "headingColor": "text", "cardHeaderLine": false, "numberWeight": "regular", "clockWeight": "regular",
+ "toggle": "fill", "tileLayout": "compact", "icons": "bubble", "buttonShape": "pill",
+ "chartColors": ["#44739e", "#984ea3", "#00d2d5", "#ff7f00", "#af8d00", "#7f80cd"], "chartGrid": false, "chartFill": true, "chartLineWidth": 2, "listLines": false}

@@ -19,7 +19,9 @@ instead (POST /api/themes).
       "cardHeaderLine": true, "numberWeight": "light" | "regular" | "bold",
       "clockWeight": "thin" | "light" | "regular", "switches": true,
       "chartColors": ["#...", ...], "chartGrid": true, "chartFill": true, "chartLineWidth": 2,
-      "listLines": true, "font": "system" | "inter", "animations": true
+      "listLines": true, "font": "system" | "inter", "animations": true,
+      "toggle": "switch" | "fill" | "icon", "tileLayout": "stacked" | "compact",
+      "icons": "none" | "badge" | "bubble", "buttonShape": "card" | "pill"
     }
 """
 import json
@@ -54,10 +56,12 @@ def theme(t):
             "titleWeight": t.get("headingWeight", "medium"), "titleColor": t.get("headingColor", "text"),
             "titleDivider": t.get("cardHeaderLine", False),
             "valueWeight": t.get("numberWeight", "regular"), "clockWeight": t.get("clockWeight", "regular"),
-            "toggleStyle": "switch" if t.get("switches", True) else "fill",
+            "toggleStyle": t.get("toggle", "switch" if t.get("switches", True) else "fill"),
             "graphLineWidth": t.get("chartLineWidth", 2), "graphFill": t.get("chartFill", True),
             "graphGrid": t.get("chartGrid", False), "graphColors": t.get("chartColors", []),
             "listDividers": t.get("listLines", False), "calendarColors": True,
+            "tileLayout": t.get("tileLayout", "stacked"), "icons": t.get("icons", "none"),
+            "buttonShape": t.get("buttonShape", "card"),
         },
         "background": {"type": "color", "color": t["page"]},
     }

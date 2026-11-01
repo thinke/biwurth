@@ -45,6 +45,24 @@ object PictureCache {
         return bitmap
     }
 
+    /**
+     * A built-in icon (assets/icons/<name>.svg, drawn in white so it can be tinted) at [size]
+     * pixels square, or null when there's no such icon.
+     */
+    fun icon(context: android.content.Context, name: String, size: Int): Bitmap? {
+        if (size <= 0) return null
+        val key = "icon:$name|$size"
+        cache.get(key)?.let { return it }
+        val svg = runCatching { context.assets.open("icons/$name.svg").use(SVG::getFromInputStream) }.getOrNull() ?: return null
+        svg.setDocumentWidth("100%")
+        svg.setDocumentHeight("100%")
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also { b ->
+            svg.renderToCanvas(Canvas(b), RenderOptions().viewPort(0f, 0f, size.toFloat(), size.toFloat()))
+        }
+        cache.put(key, bitmap)
+        return bitmap
+    }
+
     /** Kilobytes the cache holds for [files]: what a layout's pictures take. */
     fun kilobytes(files: Collection<File>): Int {
         val paths = files.map { it.path + "|" }

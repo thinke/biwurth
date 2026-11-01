@@ -1,0 +1,53 @@
+{
+  "id": "bubble-card-light",
+  "name": "Bubble Card Light",
+  "description": "Bubble Card on Home Assistant's light theme: grey pill buttons with icon bubbles that fill with the accent when on, rounded cards, Home Assistant's graph colours.",
+  "base": "light",
+  "colors": {
+    "background": "#fafafa",
+    "card": "#ececec",
+    "text": "#212121",
+    "muted": "#727272",
+    "accent": "#ff9800",
+    "onAccent": "#ffffff"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 8,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 24,
+    "padding": 12,
+    "borderWidth": 0,
+    "borderColor": "#e0e0e0",
+    "shadow": 0,
+    "titleWeight": "bold",
+    "titleColor": "text",
+    "titleDivider": false,
+    "valueWeight": "regular",
+    "clockWeight": "regular",
+    "toggleStyle": "fill",
+    "graphLineWidth": 2,
+    "graphFill": true,
+    "graphGrid": false,
+    "graphColors": [
+      "#44739e",
+      "#984ea3",
+      "#00d2d5",
+      "#ff7f00",
+      "#af8d00",
+      "#7f80cd"
+    ],
+    "listDividers": false,
+    "calendarColors": true,
+    "tileLayout": "compact",
+    "icons": "bubble",
+    "buttonShape": "pill"
+  },
+  "background": {
+    "type": "color",
+    "color": "#fafafa"
+  }
+}

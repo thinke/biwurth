@@ -188,7 +188,7 @@ data class TileStyle(
     val titleWeight: String = "medium",
     val titleColor: String = "muted",
     val titleDivider: Boolean = false,
-    /** "fill": a toggle lights up in the accent when on; "switch": it shows a switch instead. */
+    /** "fill": a toggle lights up in the accent when on; "switch": it shows a switch; "icon": only its icon lights up. */
     val toggleStyle: String = "fill",
     /** The clock's weight: "thin", "light" or "regular". */
     val clockWeight: String = "thin",
@@ -198,6 +198,12 @@ data class TileStyle(
     val listDividers: Boolean = false,
     /** A tile of several calendars marks each event with its calendar's colour (graphColors). */
     val calendarColors: Boolean = true,
+    /** Value and toggle tiles: "stacked" (name over a big number) or "compact" (icon beside name and state). */
+    val tileLayout: String = "stacked",
+    /** Icons on value and toggle tiles: "none", "badge" (tinted circle) or "bubble" (solid circle). */
+    val icons: String = "none",
+    /** Value and toggle tiles: "card" (the radius above) or "pill" (fully rounded ends). */
+    val buttonShape: String = "card",
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("radius", radius).put("padding", padding)
@@ -207,6 +213,7 @@ data class TileStyle(
         .put("shadow", shadow).put("titleWeight", titleWeight).put("titleColor", titleColor).put("titleDivider", titleDivider)
         .put("toggleStyle", toggleStyle).put("clockWeight", clockWeight).put("graphGrid", graphGrid)
         .put("listDividers", listDividers).put("calendarColors", calendarColors)
+        .put("tileLayout", tileLayout).put("icons", icons).put("buttonShape", buttonShape)
 
     companion object {
         private val HEX = Regex("#[0-9a-fA-F]{6}")
@@ -228,11 +235,14 @@ data class TileStyle(
                 titleWeight = json.optString("titleWeight").takeIf { it in setOf("regular", "medium", "bold") } ?: "medium",
                 titleColor = json.optString("titleColor").takeIf { it in setOf("muted", "text") } ?: "muted",
                 titleDivider = json.optBoolean("titleDivider", false),
-                toggleStyle = json.optString("toggleStyle").takeIf { it in setOf("fill", "switch") } ?: "fill",
+                toggleStyle = json.optString("toggleStyle").takeIf { it in setOf("fill", "switch", "icon") } ?: "fill",
                 clockWeight = json.optString("clockWeight").takeIf { it in setOf("thin", "light", "regular") } ?: "thin",
                 graphGrid = json.optBoolean("graphGrid", false),
                 listDividers = json.optBoolean("listDividers", false),
                 calendarColors = json.optBoolean("calendarColors", true),
+                tileLayout = json.optString("tileLayout").takeIf { it in setOf("stacked", "compact") } ?: "stacked",
+                icons = json.optString("icons").takeIf { it in setOf("none", "badge", "bubble") } ?: "none",
+                buttonShape = json.optString("buttonShape").takeIf { it in setOf("card", "pill") } ?: "card",
             )
         }
     }

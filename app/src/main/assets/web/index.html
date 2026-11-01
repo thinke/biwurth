@@ -141,12 +141,23 @@
         </div>
         <div class="row">
           <label class="grow">Toggles
-            <select id="toggleStyle"><option value="fill">Light up when on</option><option value="switch">Switch</option></select>
+            <select id="toggleStyle"><option value="fill">Light up when on</option><option value="switch">Switch</option><option value="icon">Icon lights up</option></select>
           </label>
           <label class="grow">Clock
             <select id="clockWeight"><option value="thin">Thin</option><option value="light">Light</option><option value="regular">Regular</option></select>
           </label>
         </div>
+        <div class="row">
+          <label class="grow">Values &amp; toggles
+            <select id="tileLayout"><option value="stacked">Name over big number</option><option value="compact">Icon beside name</option></select>
+          </label>
+          <label class="grow">Icons
+            <select id="iconStyle"><option value="none">None</option><option value="badge">Tinted circle</option><option value="bubble">Bubble</option></select>
+          </label>
+        </div>
+        <label>Button shape
+          <select id="buttonShape"><option value="card">Like the cards</option><option value="pill">Pill</option></select>
+        </label>
         <label class="check"><input id="titleDivider" type="checkbox"> Line under tile titles</label>
         <label class="check"><input id="graphGrid" type="checkbox"> Grid lines in graphs</label>
         <label class="check"><input id="listDividers" type="checkbox"> Lines between calendar events</label>

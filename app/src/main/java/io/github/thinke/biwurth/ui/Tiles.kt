@@ -8,6 +8,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import io.github.thinke.biwurth.config.TileTypes
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -101,7 +105,7 @@ fun TileView(tile: Tile) {
 private fun TileContent(tile: Tile, ha: DataHub) {
     when (tile.type) {
         "clock" -> ClockTile(tile)
-        "entity" -> Card { EntityTile(tile, ha) }
+        "entity" -> Card(button = true) { EntityTile(tile, ha) }
         "toggle" -> ToggleTile(tile, ha)
         "graph" -> Card { GraphTile(tile, ha) }
         "weather" -> Card { WeatherTile(tile, ha) }
@@ -136,10 +140,12 @@ private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> = k
 internal fun Card(
     color: Color = LocalPanelTheme.current.card,
     modifier: Modifier = Modifier,
+    /** A value or toggle tile: fully rounded ends when the style's buttonShape is "pill". */
+    button: Boolean = false,
     content: @Composable BoxWithConstraintsScope.() -> Unit,
 ) {
     val style = LocalTileStyle.current
-    val shape = RoundedCornerShape(style.radius.dp)
+    val shape = if (button && style.buttonShape == "pill") RoundedCornerShape(percent = 50) else RoundedCornerShape(style.radius.dp)
     // "No background" drops the card colour only: a lit toggle keeps its fill, which shows it's on.
     val fill = if (!LocalTileBackground.current && color == LocalPanelTheme.current.card) {
         Color.Transparent
@@ -295,6 +301,13 @@ private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: DataHub) {
     val maxWidth = maxWidth
     val maxHeight = maxHeight
     val entity = ha.entity(tile.prop("entity"))
+    if (LocalTileStyle.current.tileLayout == "compact") {
+        val name = tile.prop("name") ?: entity?.name ?: tile.prop("entity") ?: "Entity"
+        // A reading's icon is always lit, as in Mushroom: it says what the number is. Its colour is
+        // the theme's first chart colour (the accent unless the theme sets them), so readings and
+        // switches can differ, as Mushroom's blue sensors and orange lights do.
+        return CompactTile(name, animatedState(tile, entity), null, iconFor(tile, entity), seriesColor(0), on = true, theme.text)
+    }
     Column(Modifier.fillMaxSize()) {
         Title(tile.prop("name") ?: entity?.name ?: tile.prop("entity") ?: "Entity", maxHeight)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
@@ -330,8 +343,10 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     val pending = pendingFrom != null
     // "switch" style: the card stays as it is and a switch shows on or off; "fill": the card lights up.
     val switchStyle = LocalTileStyle.current.toggleStyle == "switch"
-    val lit = on && !switchStyle
+    // "icon": only the icon shows it's on (Mushroom); "fill": the card lights up (Bubble Card).
+    val lit = on && LocalTileStyle.current.toggleStyle == "fill"
     Card(
+        button = true,
         color = if (lit) theme.accent else theme.card,
         modifier = Modifier
             .clickable(enabled = id != null && !pending) {
@@ -347,6 +362,14 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
         val name = tile.prop("name") ?: entity?.name ?: id ?: "Button"
         val state = if (pending) "Switching…" else entity?.let { stateLabel(it.state) } ?: "–"
         val value = animatedState(tile, measurement)
+        if (LocalTileStyle.current.tileLayout == "compact") {
+            CompactTile(
+                name, if (measured) value else state, if (measured) state else null, iconFor(tile, entity),
+                tint = if (lit) theme.onAccent else if (on) theme.accent else theme.muted, on = on, textColor = textColor,
+                trailing = if (switchStyle) ({ Switch(on, Modifier.padding(start = 10.dp)) }) else null,
+            )
+            return@Card
+        }
         // A one-row button has no room for three lines: name and state left, the number right.
         if (measured && maxHeight < 90.dp) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
@@ -391,6 +414,115 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
                 color = stateColor,
                 fontSize = detail(minOf(maxHeight * 0.14f, maxWidth * 0.1f).coerceAtLeast(MIN_TEXT * 0.85f)),
             )
+        }
+    }
+}
+
+/**
+ * Value and toggle tiles in the compact layout (Mushroom, Bubble Card): an icon beside the name,
+ * the value or state under it. Wide tiles lay out in a row, tall ones in a centred column.
+ */
+@Composable
+private fun BoxWithConstraintsScope.CompactTile(
+    name: String,
+    value: String,
+    secondary: String?,
+    icon: String?,
+    tint: Color,
+    on: Boolean,
+    textColor: Color,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    val style = LocalTileStyle.current
+    val theme = LocalPanelTheme.current
+    val maxWidth = maxWidth
+    val maxHeight = maxHeight
+    val showIcon = icon != null && style.icons != "none"
+    val nameWeight = when (style.titleWeight) {
+        "regular" -> FontWeight.Normal
+        "bold" -> FontWeight.SemiBold
+        else -> FontWeight.Medium
+    }
+    val secondaryColor = if (textColor == theme.text) theme.muted else textColor.copy(alpha = 0.75f)
+    if (maxWidth >= maxHeight * 1.4f) {
+        val iconSize = (maxHeight * 0.62f).coerceIn(28.dp, 64.dp)
+        val nameSize = (maxHeight * 0.2f).coerceIn(MIN_TEXT, 24.dp)
+        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+            if (showIcon) {
+                TileIcon(icon!!, tint, iconSize, on)
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(name, color = textColor, fontSize = label(nameSize, fits = true), fontWeight = nameWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, color = textColor, fontSize = main(minOf(maxHeight * 0.3f, maxWidth * 0.5f / (value.length.coerceAtLeast(3) * 0.55f))), fontWeight = valueWeight(), maxLines = 1)
+                secondary?.let { Text(it, color = secondaryColor, fontSize = detail(nameSize * 0.8f), maxLines = 1) }
+            }
+            trailing?.invoke()
+        }
+    } else {
+        val iconSize = (minOf(maxWidth, maxHeight) * 0.34f).coerceIn(28.dp, 72.dp)
+        val nameSize = (maxWidth * 0.11f).coerceIn(MIN_TEXT, 24.dp)
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                if (showIcon) {
+                    TileIcon(icon!!, tint, iconSize, on)
+                    Spacer(Modifier.height(8.dp))
+                }
+                Text(name, color = textColor, fontSize = label(nameSize, fits = true), fontWeight = nameWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(value, color = textColor, fontSize = main(minOf(maxHeight * 0.18f, maxWidth * 0.8f / (value.length.coerceAtLeast(3) * 0.55f))), fontWeight = valueWeight(), maxLines = 1)
+                secondary?.let { Text(it, color = secondaryColor, fontSize = detail(nameSize * 0.8f), maxLines = 1) }
+            }
+            trailing?.let { Box(Modifier.align(Alignment.TopEnd)) { it() } }
+        }
+    }
+}
+
+/**
+ * A built-in icon in a circle: "badge" tints the circle with the icon's colour (Mushroom), "bubble"
+ * puts it on a plain circle (Bubble Card), lighter on a lit tile.
+ */
+@Composable
+private fun TileIcon(name: String, tint: Color, size: Dp, on: Boolean) {
+    val style = LocalTileStyle.current
+    val theme = LocalPanelTheme.current
+    val context = LocalContext.current
+    val pixels = with(LocalDensity.current) { (size * 0.58f).roundToPx() }
+    val bitmap = remember(name, pixels) { PictureCache.icon(context, name, pixels) }
+    val circle = when (style.icons) {
+        "bubble" -> if (tint == theme.onAccent) Color.White.copy(alpha = 0.22f) else theme.muted.copy(alpha = 0.2f)
+        else -> tint.copy(alpha = if (on) 0.2f else 0.12f)
+    }
+    Box(Modifier.size(size).clip(CircleShape).background(circle), contentAlignment = Alignment.Center) {
+        bitmap?.let {
+            Image(it.asImageBitmap(), contentDescription = null, colorFilter = ColorFilter.tint(tint), modifier = Modifier.size(size * 0.58f))
+        }
+    }
+}
+
+/**
+ * A built-in icon for a tile: its own "icon" prop ("none" for none), else one for the entity's
+ * domain, device class or unit (assets/icons).
+ */
+internal fun iconFor(tile: Tile, entity: HomeAssistant.Entity?): String? {
+    tile.prop("icon")?.let { return it.takeIf { name -> name != "none" } }
+    val id = tile.prop("entity")?.substringBefore(',')?.trim() ?: return null
+    val deviceClass = entity?.attributes?.optString("device_class").orEmpty()
+    val unit = entity?.unit.orEmpty()
+    return when (TileTypes.domainOf(id)) {
+        "light" -> "bulb"
+        "fan" -> "fan"
+        "climate" -> "thermometer"
+        "media_player" -> "tv"
+        "switch", "input_boolean" -> if (deviceClass == "switch") "power" else "plug"
+        "script", "scene", "button", "input_button", "lock", "cover" -> "power"
+        "weather" -> "sun"
+        "calendar" -> "calendar"
+        else -> when {
+            deviceClass == "temperature" || unit.startsWith("°") -> "thermometer"
+            deviceClass in setOf("humidity", "moisture") -> "drop"
+            deviceClass in setOf("power", "current", "voltage", "energy", "battery", "monetary") -> "bolt"
+            unit in setOf("W", "kW", "kWh", "Wh", "A", "V") || "/kWh" in unit -> "bolt"
+            else -> "gauge"
         }
     }
 }

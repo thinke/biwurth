@@ -1,0 +1,53 @@
+{
+  "id": "mushroom",
+  "name": "Mushroom",
+  "description": "After the Mushroom cards on Home Assistant's default light theme: round tinted icon badges beside the name and value, 12 px cards with a hairline divider, blue for readings and orange for what's on (only the icon lights up), Home Assistant's history graph colours.",
+  "base": "light",
+  "colors": {
+    "background": "#fafafa",
+    "card": "#ffffff",
+    "text": "#212121",
+    "muted": "#727272",
+    "accent": "#ff9800",
+    "onAccent": "#212121"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 8,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 12,
+    "padding": 12,
+    "borderWidth": 1,
+    "borderColor": "#e0e0e0",
+    "shadow": 0,
+    "titleWeight": "medium",
+    "titleColor": "text",
+    "titleDivider": false,
+    "valueWeight": "regular",
+    "clockWeight": "regular",
+    "toggleStyle": "icon",
+    "graphLineWidth": 2,
+    "graphFill": false,
+    "graphGrid": true,
+    "graphColors": [
+      "#2196f3",
+      "#984ea3",
+      "#00d2d5",
+      "#ff7f00",
+      "#af8d00",
+      "#7f80cd"
+    ],
+    "listDividers": false,
+    "calendarColors": true,
+    "tileLayout": "compact",
+    "icons": "badge",
+    "buttonShape": "card"
+  },
+  "background": {
+    "type": "color",
+    "color": "#fafafa"
+  }
+}
