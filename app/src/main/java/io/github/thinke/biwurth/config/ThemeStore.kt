@@ -173,7 +173,7 @@ class ThemeStore(private val context: Context, private val pictures: PictureStor
         val ID = Regex("[a-z0-9][a-z0-9-]{0,39}")
         val BUILT_IN_PRESETS = setOf("dark", "graphite", "nord", "forest", "light")
         // Bump when the app's own themes change, so tablets reinstall them.
-        private const val BUILT_IN_VERSION = "3"
+        private const val BUILT_IN_VERSION = "4"
         private const val MAX_ENTRIES = 200
         private const val MAX_BYTES = 20 shl 20
 

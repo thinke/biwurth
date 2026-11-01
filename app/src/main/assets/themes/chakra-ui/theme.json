@@ -1,0 +1,50 @@
+{
+  "id": "chakra-ui",
+  "name": "Chakra UI",
+  "description": "Chakra UI v2: white cards with its soft medium shadow on gray.100, teal accent and switches, bold headings and semibold Stat numbers. Graphs use the 400 shades, filled, no grid; calendars are plain lists like Chakra's.",
+  "base": "light",
+  "colors": {
+    "background": "#edf2f7",
+    "card": "#ffffff",
+    "text": "#1a202c",
+    "muted": "#718096",
+    "accent": "#319795",
+    "onAccent": "#ffffff"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 16,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 8,
+    "padding": 20,
+    "borderWidth": 0,
+    "borderColor": "#e2e8f0",
+    "shadow": 4,
+    "titleWeight": "bold",
+    "titleColor": "text",
+    "titleDivider": false,
+    "valueWeight": "bold",
+    "clockWeight": "regular",
+    "toggleStyle": "switch",
+    "graphLineWidth": 3,
+    "graphFill": true,
+    "graphGrid": false,
+    "graphColors": [
+      "#38b2ac",
+      "#4299e1",
+      "#9f7aea",
+      "#ed8936",
+      "#ed64a6",
+      "#48bb78"
+    ],
+    "listDividers": false,
+    "calendarColors": true
+  },
+  "background": {
+    "type": "color",
+    "color": "#edf2f7"
+  }
+}

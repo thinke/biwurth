@@ -1,0 +1,50 @@
+{
+  "id": "bootstrap-dark",
+  "name": "Bootstrap Dark",
+  "description": "Bootstrap 5.3's dark colour mode: tertiary-grey cards on the dark body, light text, the dark-mode blues; Chart.js-style graphs and list-group calendars.",
+  "base": "dark",
+  "colors": {
+    "background": "#212529",
+    "card": "#2b3035",
+    "text": "#dee2e6",
+    "muted": "#a7acb1",
+    "accent": "#0d6efd",
+    "onAccent": "#ffffff"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 16,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 6,
+    "padding": 16,
+    "borderWidth": 1,
+    "borderColor": "#495057",
+    "shadow": 0,
+    "titleWeight": "medium",
+    "titleColor": "text",
+    "titleDivider": true,
+    "valueWeight": "light",
+    "clockWeight": "light",
+    "toggleStyle": "switch",
+    "graphLineWidth": 2,
+    "graphFill": false,
+    "graphGrid": true,
+    "graphColors": [
+      "#6ea8fe",
+      "#75b798",
+      "#feb272",
+      "#ea868f",
+      "#a98eda",
+      "#6edff6"
+    ],
+    "listDividers": true,
+    "calendarColors": true
+  },
+  "background": {
+    "type": "color",
+    "color": "#212529"
+  }
+}

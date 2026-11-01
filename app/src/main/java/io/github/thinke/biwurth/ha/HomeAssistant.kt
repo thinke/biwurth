@@ -45,7 +45,8 @@ class HomeAssistant(private val name: String, private val settings: HaSettings) 
         val unit: String get() = attributes.optString("unit_of_measurement")
     }
 
-    class CalendarEvent(val summary: String, val start: ZonedDateTime, val allDay: Boolean)
+    /** An event of [calendar] (the entity it came from, so a tile of several can tell them apart). */
+    data class CalendarEvent(val summary: String, val start: ZonedDateTime, val allDay: Boolean, val calendar: String = "")
     class Forecast(val time: ZonedDateTime, val condition: String, val high: Double?, val low: Double?)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -281,9 +282,9 @@ class HomeAssistant(private val name: String, private val settings: HaSettings) 
                 val eventStart = event.getJSONObject("start")
                 val dateTime = eventStart.optString("dateTime")
                 if (dateTime.isNotEmpty()) {
-                    CalendarEvent(event.optString("summary"), OffsetDateTime.parse(dateTime).atZoneSameInstant(zone), false)
+                    CalendarEvent(event.optString("summary"), OffsetDateTime.parse(dateTime).atZoneSameInstant(zone), false, id)
                 } else {
-                    CalendarEvent(event.optString("summary"), LocalDate.parse(eventStart.getString("date")).atStartOfDay(zone), true)
+                    CalendarEvent(event.optString("summary"), LocalDate.parse(eventStart.getString("date")).atStartOfDay(zone), true, id)
                 }
             }
         }.sortedBy { it.start }

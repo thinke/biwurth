@@ -194,6 +194,10 @@ data class TileStyle(
     val clockWeight: String = "thin",
     /** Dashed guide lines across graphs. */
     val graphGrid: Boolean = false,
+    /** Lines between the rows of lists (calendar events). */
+    val listDividers: Boolean = false,
+    /** A tile of several calendars marks each event with its calendar's colour (graphColors). */
+    val calendarColors: Boolean = true,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("radius", radius).put("padding", padding)
@@ -202,6 +206,7 @@ data class TileStyle(
         .put("valueWeight", valueWeight)
         .put("shadow", shadow).put("titleWeight", titleWeight).put("titleColor", titleColor).put("titleDivider", titleDivider)
         .put("toggleStyle", toggleStyle).put("clockWeight", clockWeight).put("graphGrid", graphGrid)
+        .put("listDividers", listDividers).put("calendarColors", calendarColors)
 
     companion object {
         private val HEX = Regex("#[0-9a-fA-F]{6}")
@@ -226,6 +231,8 @@ data class TileStyle(
                 toggleStyle = json.optString("toggleStyle").takeIf { it in setOf("fill", "switch") } ?: "fill",
                 clockWeight = json.optString("clockWeight").takeIf { it in setOf("thin", "light", "regular") } ?: "thin",
                 graphGrid = json.optBoolean("graphGrid", false),
+                listDividers = json.optBoolean("listDividers", false),
+                calendarColors = json.optBoolean("calendarColors", true),
             )
         }
     }

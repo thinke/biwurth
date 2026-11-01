@@ -350,14 +350,15 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
         // A one-row button has no room for three lines: name and state left, the number right.
         if (measured && maxHeight < 90.dp) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(name, color = textColor, fontSize = label((maxHeight * 0.32f).coerceAtLeast(MIN_TEXT), fits = true),
                         fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(state, color = stateColor, fontSize = detail(MIN_TEXT * 0.85f), maxLines = 1)
                 }
+                // With a switch beside it the number gets less of the width: the name must still fit.
                 Text(
                     value, color = textColor, fontWeight = valueWeight(), maxLines = 1,
-                    fontSize = main(minOf(maxHeight * 0.6f, maxWidth * 0.5f / (value.length.coerceAtLeast(3) * 0.55f))),
+                    fontSize = main(minOf(maxHeight * 0.6f, maxWidth * (if (switchStyle) 0.28f else 0.5f) / (value.length.coerceAtLeast(3) * 0.55f))),
                 )
                 if (switchStyle) Switch(on, Modifier.padding(start = 10.dp))
             }
@@ -700,23 +701,42 @@ private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
         }
     }
 
-    val rowHeight = 40.dp
-    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    // Text follows the tile's width, so a big calendar reads from across the room; rows follow the text.
+    val style = LocalTileStyle.current
+    val calendars = ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    val marked = style.calendarColors && calendars.size > 1
+    val nameSize = (maxWidth * 0.042f).coerceIn(15.dp, 26.dp)
+    val whenSize = nameSize * 0.82f
+    val rowHeight = nameSize * 2f + if (style.listDividers) 1.dp else 0.dp
+    val today = LocalDate.now()
+    Column(Modifier.fillMaxSize()) {
         Title(tile.prop("name") ?: "Calendar", maxHeight)
+        Spacer(Modifier.height(6.dp))
         if (events.isEmpty()) {
             Text(if (ha.canFetch(ids.substringBefore(',').trim())) "Nothing in the next $days days" else "Waiting for Home Assistant", color = theme.muted)
         }
-        events.take(((maxHeight - 24.dp) / rowHeight).toInt().coerceAtLeast(1)).forEach { event ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        val fits = ((maxHeight - nameSize * 3) / rowHeight).toInt().coerceAtLeast(1)
+        events.take(fits).forEachIndexed { i, event ->
+            if (i > 0 && style.listDividers) Box(Modifier.fillMaxWidth().height(1.dp).background(borderColor()))
+            // Today's events in the accent, later ones calmer: what's next stands out.
+            val isToday = event.start.toLocalDate() == today
+            Row(Modifier.height(nameSize * 2f), verticalAlignment = Alignment.CenterVertically) {
+                if (marked) {
+                    Box(
+                        Modifier.padding(end = 10.dp).size(width = 4.dp, height = nameSize * 1.2f).clip(RoundedCornerShape(2.dp))
+                            .background(seriesColor(calendars.indexOf(event.calendar).coerceAtLeast(0))),
+                    )
+                }
                 Text(
                     whenLabel(event),
-                    color = theme.accent, fontSize = detail(15.dp), fontWeight = FontWeight.Medium, maxLines = 1,
-                    modifier = Modifier.weight(0.38f),
+                    color = if (isToday) theme.accent else theme.muted,
+                    fontSize = whenSize.sp(1f), fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Medium, maxLines = 1,
+                    modifier = Modifier.weight(0.36f),
                 )
                 Text(
                     event.summary,
-                    color = theme.text, fontSize = label(17.dp), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(0.62f),
+                    color = theme.text, fontSize = nameSize.sp(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(0.64f),
                 )
             }
         }

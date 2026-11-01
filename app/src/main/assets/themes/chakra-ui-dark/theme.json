@@ -1,0 +1,50 @@
+{
+  "id": "chakra-ui-dark",
+  "name": "Chakra UI Dark",
+  "description": "Chakra UI v2's dark mode: gray.800 cards on gray.900, the 200-shade teal it uses on dark, bold headings and semibold numbers; graphs in the 300 shades, filled; plain-list calendars.",
+  "base": "dark",
+  "colors": {
+    "background": "#171923",
+    "card": "#1a202c",
+    "text": "#edf2f7",
+    "muted": "#a0aec0",
+    "accent": "#81e6d9",
+    "onAccent": "#1a202c"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 16,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 8,
+    "padding": 20,
+    "borderWidth": 1,
+    "borderColor": "#2d3748",
+    "shadow": 0,
+    "titleWeight": "bold",
+    "titleColor": "text",
+    "titleDivider": false,
+    "valueWeight": "bold",
+    "clockWeight": "regular",
+    "toggleStyle": "switch",
+    "graphLineWidth": 3,
+    "graphFill": true,
+    "graphGrid": false,
+    "graphColors": [
+      "#4fd1c5",
+      "#63b3ed",
+      "#b794f4",
+      "#f6ad55",
+      "#f687b3",
+      "#68d391"
+    ],
+    "listDividers": false,
+    "calendarColors": true
+  },
+  "background": {
+    "type": "color",
+    "color": "#171923"
+  }
+}

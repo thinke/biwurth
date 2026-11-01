@@ -1,0 +1,8 @@
+{"id": "bootstrap", "name": "Bootstrap",
+ "description": "Bootstrap 5.3: white cards with a card-header line on light grey, the primary blue, switches, light display numbers. Graphs follow Chart.js habits (grid, no fill); calendars follow the list group (lined rows).",
+ "dark": false, "page": "#f8f9fa", "surface": "#ffffff", "text": "#212529", "textSecondary": "#6c757d",
+ "primary": "#0d6efd", "onPrimary": "#ffffff", "border": "#dee2e6", "icon": "#0d6efd",
+ "radius": 6, "padding": 16, "gap": 16, "borderWidth": 1, "shadow": 1,
+ "headingWeight": "medium", "headingColor": "text", "cardHeaderLine": true, "numberWeight": "light", "clockWeight": "light",
+ "switches": true, "chartColors": ["#0d6efd", "#198754", "#fd7e14", "#dc3545", "#6f42c1", "#0dcaf0"],
+ "chartGrid": true, "chartFill": false, "chartLineWidth": 2, "listLines": true}

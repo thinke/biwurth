@@ -1,0 +1,50 @@
+{
+  "id": "evergreen",
+  "name": "Evergreen",
+  "description": "Segment's Evergreen: white panes with elevation 1 on gray75, 4 px corners, gray900 headings over gray800 text, blue500 primary and switches. Graphs use its colour scale with grid lines; calendars are lined like its tables. Evergreen has no dark mode.",
+  "base": "light",
+  "colors": {
+    "background": "#f9fafc",
+    "card": "#ffffff",
+    "text": "#101840",
+    "muted": "#696f8c",
+    "accent": "#3366ff",
+    "onAccent": "#ffffff"
+  },
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 16,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 4,
+    "padding": 16,
+    "borderWidth": 1,
+    "borderColor": "#e6e8f0",
+    "shadow": 1,
+    "titleWeight": "bold",
+    "titleColor": "text",
+    "titleDivider": false,
+    "valueWeight": "regular",
+    "clockWeight": "regular",
+    "toggleStyle": "switch",
+    "graphLineWidth": 2,
+    "graphFill": true,
+    "graphGrid": true,
+    "graphColors": [
+      "#3366ff",
+      "#52bd95",
+      "#ffb020",
+      "#d14343",
+      "#6e62b6",
+      "#85a3ff"
+    ],
+    "listDividers": true,
+    "calendarColors": true
+  },
+  "background": {
+    "type": "color",
+    "color": "#f9fafc"
+  }
+}

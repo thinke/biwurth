@@ -714,6 +714,8 @@ function renderLayoutForm() {
   $('#clockWeight').value = tiles.clockWeight || 'thin';
   $('#titleDivider').checked = !!tiles.titleDivider;
   $('#graphGrid').checked = !!tiles.graphGrid;
+  $('#listDividers').checked = !!tiles.listDividers;
+  $('#calendarColors').checked = tiles.calendarColors ?? true;
   renderBackgroundForm();
   $('#accentDefault').checked = !layout.theme.accent;
   $('#accent').value = layout.theme.accent || THEME_ACCENTS[layout.theme.preset] || '#e0a030';
@@ -781,12 +783,14 @@ function updateTheme() {
       clockWeight: $('#clockWeight').value,
       titleDivider: $('#titleDivider').checked,
       graphGrid: $('#graphGrid').checked,
+      listDividers: $('#listDividers').checked,
+      calendarColors: $('#calendarColors').checked,
     },
   };
   setDirty(true);
   renderLayoutForm();
 }
-for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
+for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid', '#listDividers', '#calendarColors']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
 for (const id of ['#radius', '#cardPadding']) $(id).addEventListener('change', updateTheme);
 
 // Picking an installed theme puts its whole look on the layout; a built-in preset only its colours.

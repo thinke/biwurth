@@ -62,6 +62,11 @@ overrides) and `tiles`, how tiles are drawn:
     toggleStyle fill (lights up) | switch (a switch, card unchanged)
     clockWeight thin|light|regular       graphGrid, graphFill true|false   graphLineWidth (dp)
     graphColors ["#rrggbb", …] (line colours; empty = accent, then built-in ones)
+    listDividers (lines between calendar events)
+    calendarColors (a tile of several calendars marks each event in its calendar's graphColors colour)
+
+Calendar tiles show today's events with the date in the accent colour and later ones muted; text
+grows with the tile's width.
 
 Built-in themes: aurora (dark, glowing gradient, line icons) and ant-design (Ant Design's light
 look: white bordered cards, title lines, switches, grid lines, AntV chart colours).

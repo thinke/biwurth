@@ -112,13 +112,21 @@ class DataHub(private val sources: Sources) {
     fun cachedForecast(id: String) = owner(id)?.let { (ha, local) -> ha.cachedForecast(local) }
     suspend fun forecast(id: String) = owner(id)?.let { (ha, local) -> ha.forecast(local) }.orEmpty()
 
+    // Events carry the tile's own id for their calendar (src.<source>.calendar.x for another Home
+    // Assistant), not the id that Home Assistant knows it by.
     fun cachedCalendar(ids: String, days: Int): List<HomeAssistant.CalendarEvent>? =
-        calendarGroups(ids).flatMap { (ha, locals) -> ha.cachedCalendar(locals.joinToString(","), days) ?: return null }.sortedBy { it.start }
+        calendarGroups(ids).flatMap { (ha, locals) ->
+            (ha.cachedCalendar(locals.keys.joinToString(","), days) ?: return null).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
+        }.sortedBy { it.start }
 
     suspend fun calendar(ids: String, days: Int): List<HomeAssistant.CalendarEvent> =
-        calendarGroups(ids).flatMap { (ha, locals) -> ha.calendar(locals.joinToString(","), days) }.sortedBy { it.start }
+        calendarGroups(ids).flatMap { (ha, locals) ->
+            ha.calendar(locals.keys.joinToString(","), days).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
+        }.sortedBy { it.start }
 
+    // Each Home Assistant with the calendars it owns: their ids there, mapped to the tile's ids.
     private fun calendarGroups(ids: String) =
-        ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull(::owner)
-            .groupBy({ it.first }, { it.second }).toList()
+        ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+            .mapNotNull { id -> owner(id)?.let { (ha, local) -> Triple(ha, local, id) } }
+            .groupBy({ it.first }, { it.second to it.third }).map { (ha, pairs) -> ha to pairs.toMap() }
 }
