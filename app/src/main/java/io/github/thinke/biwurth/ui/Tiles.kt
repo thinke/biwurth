@@ -15,6 +15,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -579,12 +580,15 @@ private fun nameIcon(name: String): String? {
 @Composable
 private fun Switch(on: Boolean, modifier: Modifier = Modifier) {
     val theme = LocalPanelTheme.current
-    val knob by animateDpAsState(if (on) 20.dp else 2.dp, if (LocalAnimations.current) tween(200) else snap(), label = "switch")
-    Box(
-        modifier.size(width = 44.dp, height = 24.dp).clip(RoundedCornerShape(12.dp))
-            .background(if (on) theme.accent else theme.muted.copy(alpha = 0.35f)),
-    ) {
-        Box(Modifier.offset(x = knob, y = 2.dp).size(20.dp).clip(CircleShape).background(Color.White))
+    val knob by animateFloatAsState(if (on) 1f else 0f, if (LocalAnimations.current) tween(200) else snap(), label = "switch")
+    val track = if (on) theme.accent else theme.muted.copy(alpha = 0.35f)
+    // Drawn, not laid out: a knob placed 2 dp from the top rounds to whole pixels on its own and
+    // sat a pixel low on 1.33x screens; a circle on the track's centre line is centred at any density.
+    Canvas(modifier.size(width = 44.dp, height = 24.dp)) {
+        val r = size.height / 2
+        drawRoundRect(track, cornerRadius = CornerRadius(r, r))
+        val knobR = r - 2.dp.toPx()
+        drawCircle(Color.White, knobR, Offset(r + knob * (size.width - 2 * r), r))
     }
 }
 

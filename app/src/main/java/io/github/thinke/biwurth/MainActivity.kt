@@ -12,6 +12,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import io.github.thinke.biwurth.ui.PressFeedback
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -66,7 +69,8 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this) {}
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            // No Material ripple: its sparkle drew white speckles over tapped tiles (see PressFeedback).
+            MaterialTheme(colorScheme = darkColorScheme()) { CompositionLocalProvider(LocalIndication provides PressFeedback) {
                 val state by screen.state.collectAsState()
                 val layout by panel.config.layout.collectAsState()
                 val brightness by screen.brightness.collectAsState()
@@ -110,7 +114,7 @@ class MainActivity : ComponentActivity() {
                     if (state != ScreenState.AWAKE) Box(Modifier.fillMaxSize().background(Color.Black))
                     if (showFps && state == ScreenState.AWAKE) FpsCounter(Modifier.align(Alignment.TopEnd))
                 }
-            }
+            } }
         }
     }
 
