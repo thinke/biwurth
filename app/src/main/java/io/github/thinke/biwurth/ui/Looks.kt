@@ -158,13 +158,13 @@ internal fun Sparkline(points: List<Pair<Long, Float>>, color: Color, modifier: 
 @Composable
 private fun BoxWithConstraintsScope.Gauge(tile: Tile, entity: HomeAssistant.Entity?) {
     val theme = LocalPanelTheme.current
-    val maxWidth = maxWidth
-    val maxHeight = maxHeight
+    val tileHeight = maxHeight
     val (min, max) = range(tile)
     val v = entity?.state?.toDoubleOrNull()
     val f = v?.let { ((it - min) / (max - min)).toFloat().coerceIn(0f, 1f) } ?: 0f
     Column(Modifier.fillMaxSize()) {
-        Title(tile.prop("name") ?: entity?.name ?: tile.prop("entity").orEmpty(), maxHeight)
+        Title(tile.prop("name") ?: entity?.name ?: tile.prop("entity").orEmpty(), tileHeight)
+        // Sized by the space under the title, not by the whole tile.
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
             val side = minOf(maxWidth, maxHeight * 1.15f)
             val stroke = (side * 0.09f).coerceIn(6.dp, 18.dp)
