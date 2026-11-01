@@ -4,11 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -34,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -460,10 +457,24 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     LaunchedEffect(ids, drawn.isNotEmpty()) {
         if (drawn.isNotEmpty()) reveal.animateTo(1f, tween(GRAPH_REVEAL_MS, easing = FastOutSlowInEasing))
     }
-    val pulse = if (animations) {
-        rememberInfiniteTransition(label = "live").animateFloat(0f, 1f, infiniteRepeatable(tween(1_800), RepeatMode.Restart), label = "pulse")
-    } else {
-        null
+    // The pulse runs twice when a live value changes, then stops, and in steps rather than every
+    // frame: on this tablet anything moving redraws the whole screen, so an endless 60 fps pulse
+    // kept the panel at 60 full frames a second (70 % of a CPU core) around the clock.
+    val liveValues = drawn.map { it.points.lastOrNull()?.second }
+    val pulse = remember { mutableFloatStateOf(-1f) }
+    if (animations) {
+        LaunchedEffect(liveValues) {
+            if (drawn.isEmpty()) return@LaunchedEffect
+            repeat(PULSES) {
+                var t = 0f
+                while (t < 1f) {
+                    pulse.floatValue = t
+                    delay(PULSE_STEP_MS)
+                    t += PULSE_STEP_MS / PULSE_MS.toFloat()
+                }
+            }
+            pulse.floatValue = -1f
+        }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -532,7 +543,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                 if (reveal.value < 1f) return@Canvas
                 val low = shownMin.value
                 val map = GraphScale(start, now, low, (shownMax.value - low).takeIf { it > 0f } ?: 1f, size.width, size.height)
-                val t = pulse?.value
+                val t = pulse.floatValue.takeIf { it >= 0f }
                 drawn.forEach { graph ->
                     val end = graph.points.last().let { Offset(map.x(it.first), map.y(it.second)) }
                     if (t != null) drawCircle(graph.color.copy(alpha = 0.45f * (1f - t)), radius = 3.dp.toPx() + 9.dp.toPx() * t, center = end)
@@ -562,6 +573,10 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
 }
 
 private const val GRAPH_REVEAL_MS = 1_400
+private const val PULSES = 2
+private const val PULSE_MS = 1_800L
+// About 12 steps a second: smooth enough for a slowly spreading ring.
+private const val PULSE_STEP_MS = 80L
 
 private data class GraphLine(val label: String, val color: Color, val value: String, val points: List<Pair<Long, Float>>)
 
