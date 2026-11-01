@@ -65,7 +65,8 @@ overrides) and `tiles`, how tiles are drawn:
     tileLayout stacked (name over a big number) | compact (icon beside name and value)
     icons none | badge (tinted circle, Mushroom) | bubble (plain circle, Bubble Card)
     buttonShape card | pill (value and toggle tiles fully rounded)
-    thermostatStyle dial (an arc min..max) | numbers (big target with − and +)
+    thermostatStyle dial (open arc) | numbers (big target, − +) | ring (disc that glows, ticks lit)
+                    | bar (cold-to-warm track) | pill (one row) | thermometer; a tile's "style" overrides
     sliderStyle bar (a track under the name) | fill (the whole tile fills to the level)
     toggleStyle also icon (only the icon lights up when on)
     listDividers (lines between calendar events)
@@ -74,8 +75,9 @@ overrides) and `tiles`, how tiles are drawn:
 Value and toggle tiles take `props.icon`: one of bed, bolt, bulb, calendar, coffee, computer, drop, fan, gauge, home, moon, plug, power, snowflake, sun, thermometer, tv, or "none"; by
 default the compact layout picks one from the entity (temperature: thermometer, power: bolt, …).
 
-Thermostat tiles take a climate entity: target (− and + send set_temperature), current
-temperature, heating or cooling, hvac modes as chips. Slider tiles take a light (brightness),
+Thermostat tiles take a climate entity: target (− and +, or drag on the dial, ring or bar; sent
+as set_temperature once the taps stop), or low and high targets in heat_cool (tap one to pick it),
+current temperature, heating or cooling, hvac modes as chips. Slider tiles take a light (brightness),
 cover (position), fan (speed), media_player (volume), number or input_number: drag to set, tap
 toggles a light or fan.
 

@@ -91,6 +91,7 @@ fun TileView(tile: Tile) {
     CompositionLocalProvider(
         LocalTileTextSize provides tile.prop("textSize"),
         LocalTileOpacity provides opacity,
+        LocalTileBorder provides (tile.prop("border") != "none"),
         LocalTileBackground provides when (tile.prop("background")) {
             "none" -> false
             "card" -> true
@@ -158,7 +159,9 @@ internal fun Card(
         modifier.fillMaxSize()
             .then(if (style.shadow > 0 && fill.alpha > 0f) Modifier.shadow(style.shadow.dp, shape, clip = false) else Modifier)
             .clip(shape).background(fill)
-            .then(if (style.borderWidth > 0) Modifier.border(style.borderWidth.dp, borderColor(), shape) else Modifier)
+            // No card, no border: a tile on the panel's background has no outline either, and a
+            // tile's own "border: none" drops it while keeping the card.
+            .then(if (style.borderWidth > 0 && LocalTileBackground.current && LocalTileBorder.current) Modifier.border(style.borderWidth.dp, borderColor(), shape) else Modifier)
             .padding(style.padding.dp),
         content = content,
     )
@@ -175,8 +178,11 @@ val LocalTextScale = staticCompositionLocalOf { 1f }
 /** The panel-wide tile opacity (Layout → Tile opacity); a tile's own "opacity" replaces it. */
 val LocalTileOpacity = staticCompositionLocalOf { 1f }
 
-/** False for a tile set to Background: None; its card is drawn without a colour. */
+/** False for a tile set to Background: None; its card is drawn without a colour or border. */
 private val LocalTileBackground = staticCompositionLocalOf { true }
+
+/** False for a tile set to Border: None; its card keeps its colour but loses the outline. */
+private val LocalTileBorder = staticCompositionLocalOf { true }
 
 /** How tiles are drawn (theme.tiles): corners, padding, border, graph lines, value weight. */
 val LocalTileStyle = staticCompositionLocalOf { TileStyle() }

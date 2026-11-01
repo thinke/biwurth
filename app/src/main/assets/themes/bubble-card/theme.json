@@ -45,7 +45,7 @@
     "tileLayout": "compact",
     "icons": "bubble",
     "buttonShape": "pill",
-    "thermostatStyle": "dial",
+    "thermostatStyle": "pill",
     "sliderStyle": "fill"
   },
   "background": {

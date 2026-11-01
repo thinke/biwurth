@@ -33,7 +33,7 @@
       "#5ec8f2"
     ],
     "valueWeight": "light",
-    "thermostatStyle": "dial",
+    "thermostatStyle": "ring",
     "sliderStyle": "bar"
   },
   "background": {

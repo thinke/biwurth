@@ -51,6 +51,7 @@ object TileTypes {
         "Icon in the compact layout (theme.tiles.icons): default picks one for the entity; \"none\" for none.",
         listOf("", "none") + ICON_NAMES,
     )
+    private val border = Prop("border", "enum", "\"none\" drops the card's outline (the theme's border) and keeps the card.", listOf("", "none"))
     private val unit = Prop("unit", "text", "Unit shown after the value. Default: the entity's unit_of_measurement.")
     private val decimals = Prop("decimals", "integer", "Decimals shown. Default: as Home Assistant reports it.")
 
@@ -63,7 +64,7 @@ object TileTypes {
         Type(
             "entity", "Entity value", "One entity's current state with its name: a temperature, a power reading, a door.",
             size = 3 to 2, minSize = 2 to 1,
-            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, icon, unit, decimals, opacity, background, textSize),
+            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, icon, unit, decimals, opacity, background, border, textSize),
         ),
         Type(
             "toggle", "Toggle / button",
@@ -75,7 +76,7 @@ object TileTypes {
                 name,
                 icon,
                 Prop("measurement", "entity id", "Optional numeric entity shown under the name, e.g. sensor.coffee_maker_power."),
-                unit, decimals, opacity, background, textSize,
+                unit, decimals, opacity, background, border, textSize,
             ),
             domains = listOf("light", "switch", "fan", "input_boolean", "script", "scene", "button", "input_button", "cover", "media_player", "climate", "lock"),
         ),
@@ -87,14 +88,14 @@ object TileTypes {
                 name,
                 Prop("labels", "text list", "Line labels in the same order as the entities, comma separated. Default: friendly names."),
                 Prop("hours", "integer 1-336", "Hours shown. Default 24."),
-                unit, decimals, opacity, background, textSize,
+                unit, decimals, opacity, background, border, textSize,
             ),
             domains = listOf("sensor", "input_number", "number"), multi = true,
         ),
         Type(
             "weather", "Weather", "Current conditions and a daily forecast from a weather entity. Wider tiles show more days.",
             size = 4 to 3, minSize = 3 to 2,
-            props = listOf(Prop("entity", "entity id", "A weather.* entity.", required = true), name, opacity, background, textSize),
+            props = listOf(Prop("entity", "entity id", "A weather.* entity.", required = true), name, opacity, background, border, textSize),
             domains = listOf("weather"),
         ),
         Type(
@@ -105,22 +106,26 @@ object TileTypes {
                 name,
                 Prop("view", "enum", "\"\" a list of what's ahead, \"week\" a column per day from today, \"month\" the month as a grid (give it 6×5 or more).", listOf("", "week", "month")),
                 Prop("days", "integer 1-60", "Days ahead in the list view. Default 7."),
-                opacity, background, textSize,
+                opacity, background, border, textSize,
             ),
             domains = listOf("calendar"), multi = true,
         ),
         Type(
             "thermostat", "Thermostat",
-            "A climate entity: current and target temperature, heating or cooling, − and + for the target, and its modes. The theme draws it as a dial or as numbers.",
+            "A climate entity: current and target temperature (or low and high in heat_cool), heating or cooling, − and +, its modes. Set by dragging the dial or ring, or the bar. Six looks (style).",
             size = 3 to 3, minSize = 2 to 2,
-            props = listOf(Prop("entity", "entity id", "A climate.* entity.", required = true), name, opacity, background, textSize),
+            props = listOf(
+                Prop("entity", "entity id", "A climate.* entity.", required = true), name,
+                Prop("style", "enum", "This tile's look; default the theme's thermostatStyle.", listOf("", "dial", "numbers", "ring", "bar", "pill", "thermometer")),
+                opacity, background, border, textSize,
+            ),
             domains = listOf("climate"),
         ),
         Type(
             "slider", "Slider",
             "Drag to set a light's brightness, a cover's position, a fan's speed, a media player's volume or a number. A tap toggles a light or fan.",
             size = 3 to 1, minSize = 2 to 1,
-            props = listOf(Prop("entity", "entity id", "A light, cover, fan, media_player, number or input_number.", required = true), name, icon, opacity, background, textSize),
+            props = listOf(Prop("entity", "entity id", "A light, cover, fan, media_player, number or input_number.", required = true), name, icon, opacity, background, border, textSize),
             domains = listOf("light", "cover", "fan", "media_player", "number", "input_number"),
         ),
         Type(

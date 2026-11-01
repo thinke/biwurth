@@ -37,6 +37,6 @@
  "chartFill": true,
  "chartLineWidth": 2,
  "listLines": false,
- "thermostat": "dial",
+ "thermostat": "pill",
  "slider": "fill"
 }
