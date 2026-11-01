@@ -9,6 +9,8 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import io.github.thinke.biwurth.config.BackgroundStore
 import io.github.thinke.biwurth.config.ConfigStore
+import io.github.thinke.biwurth.config.PictureStore
+import io.github.thinke.biwurth.config.ThemeStore
 import io.github.thinke.biwurth.sources.Sources
 import io.github.thinke.biwurth.update.Updater
 
@@ -18,6 +20,10 @@ class PanelApp : Application() {
     lateinit var config: ConfigStore
         private set
     lateinit var backgrounds: BackgroundStore
+        private set
+    lateinit var pictures: PictureStore
+        private set
+    lateinit var themes: ThemeStore
         private set
     lateinit var sources: Sources
         private set
@@ -34,8 +40,11 @@ class PanelApp : Application() {
         super.onCreate()
         EventLog.init(filesDir)
         prefs = Prefs(this)
+        FrameStats.showCounter.value = prefs.showFps
         config = ConfigStore(this)
         backgrounds = BackgroundStore(this)
+        pictures = PictureStore(this)
+        themes = ThemeStore(this, pictures, backgrounds)
         sources = Sources(config, filesDir).also { it.start() }
         hub = DataHub(sources)
         screen = ScreenController(this, prefs)

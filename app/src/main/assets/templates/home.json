@@ -1,0 +1,11 @@
+{"name": "Home overview", "description": "Clock and weather on top, three values and a button, two 24-hour graphs.",
+ "tiles": [
+  {"type": "clock", "w": 5, "h": 3},
+  {"type": "weather", "w": 7, "h": 3, "props": {"entity": ""}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Outdoor", "decimals": "1"}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Indoor", "decimals": "1"}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Electricity now", "decimals": "1"}},
+  {"type": "toggle", "w": 3, "h": 2, "props": {"name": "Lights"}},
+  {"type": "graph", "w": 6, "h": 3, "props": {"name": "Temperature, 24 h", "decimals": "1"}},
+  {"type": "graph", "w": 6, "h": 3, "props": {"name": "Electricity price, 24 h", "decimals": "1"}}
+ ]}

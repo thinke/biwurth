@@ -31,6 +31,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("brightness", -1)
         set(value) = sp.edit { putInt("brightness", value) }
 
+    /** Settings → FPS counter over the panel. */
+    var showFps: Boolean
+        get() = sp.getBoolean("showFps", false)
+        set(value) = sp.edit { putBoolean("showFps", value) }
+
     /** Lock the tablet to this app (only takes effect when the app is device owner). */
     var kiosk: Boolean
         get() = sp.getBoolean("kiosk", true)

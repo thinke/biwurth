@@ -1,0 +1,9 @@
+{"name": "Climate", "description": "Four rooms' temperatures, with temperature and humidity over the last day.",
+ "tiles": [
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Living room", "decimals": "1"}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Bedroom", "decimals": "1"}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Kitchen", "decimals": "1"}},
+  {"type": "entity", "w": 3, "h": 2, "props": {"name": "Outdoor", "decimals": "1"}},
+  {"type": "graph", "w": 12, "h": 3, "props": {"name": "Temperature, 24 h", "decimals": "1"}},
+  {"type": "graph", "w": 12, "h": 3, "props": {"name": "Humidity, 24 h", "decimals": "0"}}
+ ]}

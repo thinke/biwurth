@@ -1,0 +1,16 @@
+{
+  "id": "aurora",
+  "name": "Aurora",
+  "description": "Night blues with a slowly turning northern-lights gradient, rounded outlined cards and line icons.",
+  "base": "dark",
+  "colors": {"background": "#0b1020", "card": "#141b2e", "text": "#eef2ff", "muted": "#8a94b8", "accent": "#7ee0c3", "onAccent": "#0b1020"},
+  "font": "inter",
+  "textScale": 1,
+  "tileOpacity": 85,
+  "gap": 12,
+  "animations": true,
+  "cards": true,
+  "tiles": {"radius": 22, "padding": 14, "borderWidth": 1, "borderColor": "#2a3557", "graphLineWidth": 3, "graphFill": true,
+            "graphColors": ["#7ee0c3", "#8fa8ff", "#f7b267", "#f25f5c", "#c792ea", "#5ec8f2"], "valueWeight": "light"},
+  "background": {"type": "gradient", "colors": ["#0b1020", "#16284a", "#0f3d3a"], "angle": 200, "animate": true, "dim": 0}
+}

@@ -1,8 +1,19 @@
 package io.github.thinke.biwurth.ui
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,11 +41,20 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLocale
@@ -43,6 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import io.github.thinke.biwurth.config.Tile
+import io.github.thinke.biwurth.config.TileStyle
 import io.github.thinke.biwurth.ha.HomeAssistant
 import io.github.thinke.biwurth.DataHub
 import io.github.thinke.biwurth.panel
@@ -65,7 +87,15 @@ private val ON_STATES = setOf("on", "open", "opening", "playing", "home", "unloc
 fun TileView(tile: Tile) {
     val ha = LocalContext.current.panel.hub
     val opacity = tile.prop("opacity")?.toIntOrNull()?.coerceIn(0, 100)?.div(100f) ?: LocalTileOpacity.current
-    CompositionLocalProvider(LocalTileTextSize provides tile.prop("textSize"), LocalTileOpacity provides opacity) {
+    CompositionLocalProvider(
+        LocalTileTextSize provides tile.prop("textSize"),
+        LocalTileOpacity provides opacity,
+        LocalTileBackground provides when (tile.prop("background")) {
+            "none" -> false
+            "card" -> true
+            else -> LocalCards.current
+        },
+    ) {
         TileContent(tile, ha)
     }
 }
@@ -80,6 +110,7 @@ private fun TileContent(tile: Tile, ha: DataHub) {
         "weather" -> Card { WeatherTile(tile, ha) }
         "calendar" -> Card { CalendarTile(tile, ha) }
         "camera" -> CameraTile(tile)
+        "space" -> SpaceTile(tile)
     }
 }
 
@@ -110,9 +141,20 @@ internal fun Card(
     modifier: Modifier = Modifier,
     content: @Composable BoxWithConstraintsScope.() -> Unit,
 ) {
+    val style = LocalTileStyle.current
+    val shape = RoundedCornerShape(style.radius.dp)
+    // "No background" drops the card colour only: a lit toggle keeps its fill, which shows it's on.
+    val fill = if (!LocalTileBackground.current && color == LocalPanelTheme.current.card) {
+        Color.Transparent
+    } else {
+        color.copy(alpha = color.alpha * LocalTileOpacity.current)
+    }
     BoxWithConstraints(
-        modifier.fillMaxSize().clip(RoundedCornerShape(16.dp))
-            .background(color.copy(alpha = color.alpha * LocalTileOpacity.current)).padding(12.dp),
+        modifier.fillMaxSize()
+            .then(if (style.shadow > 0 && fill.alpha > 0f) Modifier.shadow(style.shadow.dp, shape, clip = false) else Modifier)
+            .clip(shape).background(fill)
+            .then(if (style.borderWidth > 0) Modifier.border(style.borderWidth.dp, borderColor(), shape) else Modifier)
+            .padding(style.padding.dp),
         content = content,
     )
 }
@@ -127,6 +169,39 @@ val LocalTextScale = staticCompositionLocalOf { 1f }
 
 /** The panel-wide tile opacity (Layout → Tile opacity); a tile's own "opacity" replaces it. */
 val LocalTileOpacity = staticCompositionLocalOf { 1f }
+
+/** False for a tile set to Background: None; its card is drawn without a colour. */
+private val LocalTileBackground = staticCompositionLocalOf { true }
+
+/** How tiles are drawn (theme.tiles): corners, padding, border, graph lines, value weight. */
+val LocalTileStyle = staticCompositionLocalOf { TileStyle() }
+
+@Composable
+private fun valueWeight() = when (LocalTileStyle.current.valueWeight) {
+    "regular" -> FontWeight.Normal
+    "bold" -> FontWeight.SemiBold
+    else -> FontWeight.Light
+}
+
+@Composable
+private fun borderColor(): Color = LocalTileStyle.current.borderColor.let(::hexColor) ?: LocalPanelTheme.current.muted.copy(alpha = 0.4f)
+
+/** A graph's [i]th line colour: the style's own list, else the accent and then a built-in set. */
+@Composable
+private fun seriesColor(i: Int): Color {
+    val own = LocalTileStyle.current.graphColors.mapNotNull(::hexColor)
+    if (own.isNotEmpty()) return own[i % own.size]
+    return if (i == 0) LocalPanelTheme.current.accent else SERIES_COLORS[(i - 1) % SERIES_COLORS.size]
+}
+
+private fun hexColor(hex: String): Color? =
+    hex.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)?.let { Color(0xFF000000 or it) }
+
+/** The theme's default for tiles' cards; a tile's own "background" overrides it. */
+val LocalCards = staticCompositionLocalOf { true }
+
+/** Layout → Animations: graphs drawing in, values rolling, live dots pulsing. */
+val LocalAnimations = staticCompositionLocalOf { true }
 
 /** The tile's "Text size": null for Auto, else small, medium, large or xl. */
 private val LocalTileTextSize = staticCompositionLocalOf<String?> { null }
@@ -162,14 +237,31 @@ internal fun detail(auto: Dp): TextUnit = (DETAIL_SIZES[LocalTileTextSize.curren
 
 // Titles stop growing on big tiles; a 6-row graph doesn't need a huge heading.
 @Composable
-internal fun Title(text: String, height: Dp) = Text(
-    text,
-    color = LocalPanelTheme.current.muted,
-    fontSize = detail((height * 0.16f).coerceIn(MIN_TEXT, 22.dp)),
-    fontWeight = FontWeight.Medium,
-    maxLines = 1,
-    overflow = TextOverflow.Ellipsis,
-)
+internal fun Title(text: String, height: Dp) {
+    val style = LocalTileStyle.current
+    val theme = LocalPanelTheme.current
+    Column {
+        Text(
+            text,
+            color = if (style.titleColor == "text") theme.text else theme.muted,
+            fontSize = detail((height * 0.16f).coerceIn(MIN_TEXT, 22.dp)),
+            fontWeight = when (style.titleWeight) {
+                "regular" -> FontWeight.Normal
+                "bold" -> FontWeight.SemiBold
+                else -> FontWeight.Medium
+            },
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        // A card head's line, full width (out to the card's padding).
+        if (style.titleDivider) {
+            Box(
+                Modifier.padding(top = (style.padding / 2).coerceAtLeast(4).dp).fillMaxWidth().height(1.dp)
+                    .background(borderColor()),
+            )
+        }
+    }
+}
 
 @Composable
 private fun ClockTile(tile: Tile) {
@@ -181,11 +273,15 @@ private fun ClockTile(tile: Tile) {
             delay(1000L - System.currentTimeMillis() % 1000L)
         }
     }
-    BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(LocalTileStyle.current.radius.dp)), contentAlignment = Alignment.Center) {
         // Fit "HH:mm" in the width as well as the height.
         val size = minOf(maxHeight * 0.6f, maxWidth * 0.3f)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(now.format(TIME), color = theme.text, fontSize = main(size, fixedFactor = 2f), fontWeight = FontWeight.ExtraLight, maxLines = 1)
+            Text(now.format(TIME), color = theme.text, fontSize = main(size, fixedFactor = 2f), fontWeight = when (LocalTileStyle.current.clockWeight) {
+                "regular" -> FontWeight.Normal
+                "light" -> FontWeight.Light
+                else -> FontWeight.ExtraLight
+            }, maxLines = 1)
             if (tile.prop("date") != "off") {
                 Text(now.format(DATE), color = theme.muted, fontSize = label(size * 0.2f, fits = true), maxLines = 1)
             }
@@ -203,9 +299,9 @@ private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: DataHub) {
     Column(Modifier.fillMaxSize()) {
         Title(tile.prop("name") ?: entity?.name ?: tile.prop("entity") ?: "Entity", maxHeight)
         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
-            val value = formatState(tile, entity)
+            val value = animatedState(tile, entity)
             val size = minOf(maxHeight * 0.42f, maxWidth / (value.length.coerceAtLeast(3) * 0.55f))
-            Text(value, color = theme.text, fontSize = main(size), fontWeight = FontWeight.Light, maxLines = 1)
+            Text(value, color = theme.text, fontSize = main(size), fontWeight = valueWeight(), maxLines = 1)
         }
     }
 }
@@ -233,8 +329,11 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
         }
     }
     val pending = pendingFrom != null
+    // "switch" style: the card stays as it is and a switch shows on or off; "fill": the card lights up.
+    val switchStyle = LocalTileStyle.current.toggleStyle == "switch"
+    val lit = on && !switchStyle
     Card(
-        color = if (on) theme.accent else theme.card,
+        color = if (lit) theme.accent else theme.card,
         modifier = Modifier
             .clickable(enabled = id != null && !pending) {
                 pendingFrom = entity?.state.orEmpty()
@@ -244,49 +343,68 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
     ) {
         val maxWidth = maxWidth
         val maxHeight = maxHeight
-        val textColor = if (on) theme.onAccent else theme.text
+        val textColor = if (lit) theme.onAccent else theme.text
+        val stateColor = if (lit) theme.onAccent else theme.muted
         val name = tile.prop("name") ?: entity?.name ?: id ?: "Button"
         val state = if (pending) "Switching…" else entity?.let { stateLabel(it.state) } ?: "–"
-        val value = formatState(tile, measurement)
+        val value = animatedState(tile, measurement)
         // A one-row button has no room for three lines: name and state left, the number right.
         if (measured && maxHeight < 90.dp) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(name, color = textColor, fontSize = label((maxHeight * 0.32f).coerceAtLeast(MIN_TEXT), fits = true),
                         fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(state, color = if (on) theme.onAccent else theme.muted, fontSize = detail(MIN_TEXT * 0.85f), maxLines = 1)
+                    Text(state, color = stateColor, fontSize = detail(MIN_TEXT * 0.85f), maxLines = 1)
                 }
                 Text(
-                    value, color = textColor, fontWeight = FontWeight.Light, maxLines = 1,
+                    value, color = textColor, fontWeight = valueWeight(), maxLines = 1,
                     fontSize = main(minOf(maxHeight * 0.6f, maxWidth * 0.5f / (value.length.coerceAtLeast(3) * 0.55f))),
                 )
+                if (switchStyle) Switch(on, Modifier.padding(start = 10.dp))
             }
             return@Card
         }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                name,
-                color = textColor,
-                fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
-                fontWeight = FontWeight.Medium,
-                maxLines = if (measured) 1 else 2,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    name,
+                    color = textColor,
+                    fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
+                    fontWeight = FontWeight.Medium,
+                    maxLines = if (measured) 1 else 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                if (switchStyle) Switch(on, Modifier.padding(start = 8.dp))
+            }
             if (measured) {
                 Text(
                     value,
                     color = textColor,
                     fontSize = main(minOf(maxHeight * 0.32f, maxWidth / (value.length.coerceAtLeast(3) * 0.55f))),
-                    fontWeight = FontWeight.Light,
+                    fontWeight = valueWeight(),
                     maxLines = 1,
                 )
             }
             Text(
                 state,
-                color = if (on) theme.onAccent else theme.muted,
+                color = stateColor,
                 fontSize = detail(minOf(maxHeight * 0.14f, maxWidth * 0.1f).coerceAtLeast(MIN_TEXT * 0.85f)),
             )
         }
+    }
+}
+
+/** A switch showing on or off (the tile itself takes the tap): accent track when on, the knob sliding. */
+@Composable
+private fun Switch(on: Boolean, modifier: Modifier = Modifier) {
+    val theme = LocalPanelTheme.current
+    val knob by animateDpAsState(if (on) 20.dp else 2.dp, if (LocalAnimations.current) tween(200) else snap(), label = "switch")
+    Box(
+        modifier.size(width = 44.dp, height = 24.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (on) theme.accent else theme.muted.copy(alpha = 0.35f)),
+    ) {
+        Box(Modifier.offset(x = knob, y = 2.dp).size(20.dp).clip(CircleShape).background(Color.White))
     }
 }
 
@@ -300,7 +418,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     val maxWidth = maxWidth
     val maxHeight = maxHeight
     val ids = tile.prop("entity")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
-    if (ids.isEmpty()) return Title("Pick a sensor", maxHeight)
+    if (ids.isEmpty()) return Title(pickHint(tile, "Pick a sensor"), maxHeight)
     val labels = tile.prop("labels")?.split(',')?.map { it.trim() }.orEmpty()
     val hours = tile.intProp("hours", 24).coerceIn(1, 24 * 14)
     val current = ha.entities(ids)
@@ -322,19 +440,38 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
         val points = history[id].orEmpty()
         GraphLine(
             label = labels.getOrNull(i)?.ifEmpty { null } ?: entity?.name ?: id,
-            color = if (i == 0) theme.accent else SERIES_COLORS[(i - 1) % SERIES_COLORS.size],
+            color = seriesColor(i),
             value = formatState(tile, entity),
             points = if (live != null) points + (now to live) else points,
         )
     }
     val drawn = lines.filter { it.points.size >= 2 }
+    val style = LocalTileStyle.current
+
+    // Animations: the lines draw in from the left when the graph first has data, the scale glides
+    // to a new range instead of jumping, and a dot pulses at each line's live end.
+    val animations = LocalAnimations.current
+    val scaleSpec: AnimationSpec<Float> = if (animations) tween(900, easing = FastOutSlowInEasing) else snap()
+    val minTarget = drawn.minOfOrNull { line -> line.points.minOf { it.second } } ?: 0f
+    val maxTarget = drawn.maxOfOrNull { line -> line.points.maxOf { it.second } } ?: 0f
+    val shownMin = animateFloatAsState(minTarget, scaleSpec, label = "graph min")
+    val shownMax = animateFloatAsState(maxTarget, scaleSpec, label = "graph max")
+    val reveal = remember(ids) { Animatable(if (animations) 0f else 1f) }
+    LaunchedEffect(ids, drawn.isNotEmpty()) {
+        if (drawn.isNotEmpty()) reveal.animateTo(1f, tween(GRAPH_REVEAL_MS, easing = FastOutSlowInEasing))
+    }
+    val pulse = if (animations) {
+        rememberInfiniteTransition(label = "live").animateFloat(0f, 1f, infiniteRepeatable(tween(1_800), RepeatMode.Restart), label = "pulse")
+    } else {
+        null
+    }
 
     Column(Modifier.fillMaxSize()) {
         // Name in the top-left corner like every other tile, the current value opposite it.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             Box(Modifier.weight(1f)) { Title(tile.prop("name") ?: if (lines.size == 1) lines[0].label else "History", maxHeight) }
             if (lines.size == 1) {
-                Text(lines[0].value, color = theme.text, fontSize = label(minOf(maxHeight * 0.16f, 40.dp)), fontWeight = FontWeight.Light)
+                Text(lines[0].value, color = theme.text, fontSize = label(minOf(maxHeight * 0.16f, 40.dp)), fontWeight = valueWeight())
             }
         }
         if (drawn.isEmpty()) {
@@ -343,38 +480,64 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
             }
             return@Column
         }
-        val min = drawn.minOf { line -> line.points.minOf { it.second } }
-        val max = drawn.maxOf { line -> line.points.maxOf { it.second } }
-        Canvas(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
-            val start = now - hours * 3_600_000L
-            val range = (max - min).takeIf { it > 0f } ?: 1f
-            fun point(p: Pair<Long, Float>) = Offset(
-                size.width * ((p.first - start).coerceAtLeast(0L).toFloat() / (now - start)),
-                size.height * (1f - (p.second - min) / range),
-            )
-            drawn.forEach { graph ->
-                // Sensors hold their value until the next change, so draw steps rather than slopes.
-                val path = Path()
-                graph.points.forEachIndexed { i, p ->
-                    val o = point(p)
-                    if (i == 0) {
-                        path.moveTo(o.x, o.y)
+        val min = minTarget
+        val max = maxTarget
+        val start = now - hours * 3_600_000L
+        val columns = with(LocalDensity.current) { maxWidth.roundToPx() }.coerceAtLeast(16)
+        // At most a few points per pixel column (spikes kept): a busy sensor's thousands of readings
+        // would otherwise go into every path. Redone when the data or the tile's size changes.
+        val prepared = remember(drawn, start, columns) { drawn.map { it.points.thinned(start, now, columns) } }
+        val fill = drawn.size == 1 && style.graphFill
+        val gridColor = borderColor()
+        Box(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
+            // The lines: paths built once per data, size or scale; drawing in only clips them.
+            Spacer(
+                Modifier.fillMaxSize().drawWithCache {
+                    val low = shownMin.value
+                    val range = (shownMax.value - low).takeIf { it > 0f } ?: 1f
+                    val map = GraphScale(start, now, low, range, size.width, size.height)
+                    val paths = prepared.map { stepPath(it, map) }
+                    val fills = if (fill) {
+                        paths.map { line ->
+                            Path().apply {
+                                addPath(line)
+                                lineTo(size.width, size.height)
+                                lineTo(map.x(prepared[0].first().first), size.height)
+                                close()
+                            }
+                        }
                     } else {
-                        path.lineTo(o.x, point(graph.points[i - 1]).y)
-                        path.lineTo(o.x, o.y)
+                        emptyList()
                     }
-                }
-                // Fill under a single line only; several fills would muddy each other.
-                if (drawn.size == 1) {
-                    val fill = Path().apply {
-                        addPath(path)
-                        lineTo(size.width, size.height)
-                        lineTo(point(graph.points.first()).x, size.height)
-                        close()
+                    val stroke = Stroke(width = style.graphLineWidth.dp.toPx())
+                    val grid = style.graphGrid
+                    val gridColor = gridColor
+                    val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
+                    onDrawBehind {
+                        if (grid) {
+                            for (k in 0..3) {
+                                val y = size.height * k / 3f
+                                drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx(), pathEffect = dash)
+                            }
+                        }
+                        clipRect(right = size.width * reveal.value) {
+                            fills.forEachIndexed { i, path -> drawPath(path, drawn[i].color.copy(alpha = 0.15f)) }
+                            paths.forEachIndexed { i, path -> drawPath(path, drawn[i].color, style = stroke) }
+                        }
                     }
-                    drawPath(fill, graph.color.copy(alpha = 0.15f))
+                },
+            )
+            // The live end of each line, on its own layer: the pulse redraws a few circles, not the lines.
+            Canvas(Modifier.fillMaxSize()) {
+                if (reveal.value < 1f) return@Canvas
+                val low = shownMin.value
+                val map = GraphScale(start, now, low, (shownMax.value - low).takeIf { it > 0f } ?: 1f, size.width, size.height)
+                val t = pulse?.value
+                drawn.forEach { graph ->
+                    val end = graph.points.last().let { Offset(map.x(it.first), map.y(it.second)) }
+                    if (t != null) drawCircle(graph.color.copy(alpha = 0.45f * (1f - t)), radius = 3.dp.toPx() + 9.dp.toPx() * t, center = end)
+                    drawCircle(graph.color, radius = 3.dp.toPx(), center = end)
                 }
-                drawPath(path, graph.color, style = Stroke(width = 2.dp.toPx()))
             }
         }
         if (lines.size > 1) {
@@ -398,7 +561,54 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     }
 }
 
-private class GraphLine(val label: String, val color: Color, val value: String, val points: List<Pair<Long, Float>>)
+private const val GRAPH_REVEAL_MS = 1_400
+
+private data class GraphLine(val label: String, val color: Color, val value: String, val points: List<Pair<Long, Float>>)
+
+/** Time and value to pixels in a graph [width] × [height]. */
+private class GraphScale(val start: Long, val end: Long, val low: Float, val range: Float, val width: Float, val height: Float) {
+    fun x(time: Long) = width * ((time - start).coerceAtLeast(0L).toFloat() / (end - start).coerceAtLeast(1L))
+    fun y(value: Float) = height * (1f - (value - low) / range)
+}
+
+// Sensors hold their value until the next change, so steps rather than slopes.
+private fun stepPath(points: List<Pair<Long, Float>>, map: GraphScale): Path = Path().apply {
+    var lastY = 0f
+    points.forEachIndexed { i, (time, value) ->
+        val x = map.x(time)
+        val y = map.y(value)
+        if (i == 0) moveTo(x, y) else {
+            lineTo(x, lastY)
+            lineTo(x, y)
+        }
+        lastY = y
+    }
+}
+
+/**
+ * At most the first, lowest, highest and last reading of each of [columns] slices of the time from
+ * [start] to [end], in time order: what a step line [columns] pixels wide can show, spikes and all.
+ */
+internal fun List<Pair<Long, Float>>.thinned(start: Long, end: Long, columns: Int): List<Pair<Long, Float>> {
+    if (size <= columns * 4) return this
+    val span = (end - start).coerceAtLeast(1L)
+    val out = ArrayList<Pair<Long, Float>>(columns * 4)
+    var i = 0
+    while (i < size) {
+        val column = ((this[i].first - start) * columns / span).coerceIn(0L, columns - 1L)
+        var j = i
+        var low = i
+        var high = i
+        while (j + 1 < size && ((this[j + 1].first - start) * columns / span).coerceIn(0L, columns - 1L) == column) {
+            j++
+            if (this[j].second < this[low].second) low = j
+            if (this[j].second > this[high].second) high = j
+        }
+        sortedSetOf(i, low, high, j).forEach { out += this[it] }
+        i = j + 1
+    }
+    return out
+}
 
 // Line colours after the theme's accent: distinct on dark and light backgrounds alike.
 private val SERIES_COLORS = listOf(
@@ -410,7 +620,7 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val maxWidth = maxWidth
     val maxHeight = maxHeight
-    val id = tile.prop("entity") ?: return Title("Pick a weather entity", maxHeight)
+    val id = tile.prop("entity") ?: return Title(pickHint(tile, "Pick a weather entity"), maxHeight)
     val entity = ha.entity(id)
     val connected by ha.connectedSources.collectAsState()
     var forecast by remember(id) { mutableStateOf(ha.cachedForecast(id).orEmpty()) }
@@ -435,7 +645,7 @@ private fun BoxWithConstraintsScope.WeatherTile(tile: Tile, ha: DataHub) {
             Text(
                 // The unit already has its degree sign ("°C"); formatTemp's is for the bare forecast numbers.
                 temperature?.let { "%.0f%s".format(it, unit.ifEmpty { "°" }) } ?: "–",
-                color = theme.text, fontSize = main(size * 0.8f), fontWeight = FontWeight.Light, modifier = Modifier.padding(start = 12.dp),
+                color = theme.text, fontSize = main(size * 0.8f), fontWeight = valueWeight(), modifier = Modifier.padding(start = 12.dp),
             )
         }
         if (tall) {
@@ -460,7 +670,7 @@ private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
     val theme = LocalPanelTheme.current
     val maxWidth = maxWidth
     val maxHeight = maxHeight
-    val ids = tile.prop("entity") ?: return Title("Pick a calendar", maxHeight)
+    val ids = tile.prop("entity") ?: return Title(pickHint(tile, "Pick a calendar"), maxHeight)
     val days = tile.intProp("days", 7).coerceIn(1, 60)
     val connected by ha.connectedSources.collectAsState()
     var events by remember(ids, days) { mutableStateOf(ha.cachedCalendar(ids, days).orEmpty()) }
@@ -504,6 +714,30 @@ private fun whenLabel(event: HomeAssistant.CalendarEvent): String {
     }
     return if (event.allDay) day else "$day ${event.start.format(TIME)}"
 }
+
+/**
+ * [formatState], with a number rolling from its old value to the new one rather than jumping, as
+ * many decimals as the entity reports throughout (or the tile's Decimals).
+ */
+@Composable
+private fun animatedState(tile: Tile, entity: HomeAssistant.Entity?): String {
+    val target = entity?.state?.toFloatOrNull()
+    val shown = animateFloatAsState(
+        target ?: 0f,
+        animationSpec = if (LocalAnimations.current) tween(VALUE_ROLL_MS, easing = FastOutSlowInEasing) else snap(),
+        label = "value",
+    ).value
+    if (entity == null || target == null) return formatState(tile, entity)
+    val decimals = tile.prop("decimals")?.toIntOrNull()?.coerceIn(0, 4)
+        ?: entity.state.substringAfter('.', "").length.coerceAtMost(4)
+    val unit = tile.prop("unit") ?: entity.unit
+    return "${"%.${decimals}f".format(shown)}${if (unit.isEmpty() || unit == "%") unit else " $unit"}"
+}
+
+private const val VALUE_ROLL_MS = 800
+
+// An empty tile keeps its name (a template's "Temperature, 24 h") and says what it still needs.
+private fun pickHint(tile: Tile, hint: String) = tile.prop("name")?.let { "$it: ${hint.replaceFirstChar(Char::lowercase)}" } ?: hint
 
 private fun formatState(tile: Tile, entity: HomeAssistant.Entity?): String {
     if (entity == null || entity.state == "unavailable" || entity.state == "unknown") return "–"

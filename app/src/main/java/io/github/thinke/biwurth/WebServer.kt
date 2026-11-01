@@ -11,7 +11,11 @@ import io.github.thinke.biwurth.config.MqttSettings
 import io.github.thinke.biwurth.config.Orientation
 import io.github.thinke.biwurth.config.Page
 import io.github.thinke.biwurth.config.SourceConfig
+import io.github.thinke.biwurth.config.ThemeSettings
+import io.github.thinke.biwurth.config.ThemeStore
 import io.github.thinke.biwurth.config.TileTypes
+import io.github.thinke.biwurth.config.Templates
+import androidx.compose.ui.graphics.toArgb
 import io.github.thinke.biwurth.ui.CameraStatus
 import io.github.thinke.biwurth.ui.cameraTilesOnPanel
 import io.github.thinke.biwurth.ui.PanelSnapshot
@@ -147,12 +151,19 @@ class WebServer(private val app: PanelApp) {
             val days = request.query.split('&').firstOrNull { it.startsWith("days=") }?.substringAfter('=')?.toIntOrNull() ?: 7
             return Response(200, "text/csv; charset=utf-8", app.sources.telemetry.csv(id, days.coerceIn(1, 3650)).toByteArray())
         }
+        if (request.method == "GET" && request.path.startsWith("/api/picture/")) {
+            val file = app.pictures.file(request.path.substringAfterLast('/')) ?: return json(404, error("Not found"))
+            val type = when (file.extension) { "png" -> "image/png"; "webp" -> "image/webp"; "svg" -> "image/svg+xml"; else -> "image/jpeg" }
+            return Response(200, type, file.readBytes())
+        }
         if (request.method == "GET" && request.path.startsWith("/api/background/image/")) {
             val file = app.backgrounds.file(request.path.substringAfterLast('/')) ?: return json(404, error("Not found"))
             val type = when (file.extension) { "png" -> "image/png"; "webp" -> "image/webp"; else -> "image/jpeg" }
             return Response(200, type, file.readBytes())
         }
         if (request.path.startsWith("/api/layout/pages")) return pageRoute(request)
+        if (request.path == "/api/themes" || request.path.startsWith("/api/themes/")) return themeRoute(request)
+        if (request.path == "/api/templates" || request.path.startsWith("/api/templates/")) return templateRoute(request)
         if (request.path == "/api/screenshot" && request.method in setOf("GET", "POST")) return screenshot(request)
         return when ("${request.method} ${request.path}") {
             "GET /state", "GET /api/state" -> json(200, JSONObject().put("screen", screen.state.value.name.lowercase()))
@@ -166,6 +177,15 @@ class WebServer(private val app: PanelApp) {
             }
             "GET /api/config" -> json(200, config())
             "GET /api/schema" -> json(200, schema())
+            "POST /api/benchmark" -> {
+                // ?seconds=5-60&mode=idle|full|swipe&warm=1: see Benchmark.
+                val params = params(request.query)
+                val mode = runCatching { Benchmark.Mode.valueOf(params["mode"].orEmpty().uppercase()) }.getOrDefault(Benchmark.Mode.IDLE)
+                val seconds = (params["seconds"]?.toIntOrNull() ?: 15).coerceIn(5, 60)
+                val result = runCatching { runBlocking { Benchmark.run(app, seconds, mode, params["warm"] in setOf("1", "true")) } }
+                    .getOrElse { throw BadRequest(it.message ?: "Benchmark failed") }
+                json(200, result)
+            }
             "GET /api/layout" -> json(200, JSONObject().put("layout", app.config.layout.value.toJson()))
             "POST /api/layout/check" -> {
                 // Checked only: nothing is saved or preloaded. The layout comes back as it would be
@@ -246,6 +266,11 @@ class WebServer(private val app: PanelApp) {
                         .put("svg", Provisioning.qrSvg(payload.toString())),
                 )
             }
+            "PUT /api/picture" -> {
+                // A picture for an Empty space tile; the ones layouts use (saved or undoable) are kept.
+                val name = runCatching { app.pictures.save(request.bytes, usedPictures()) }.getOrElse { throw BadRequest(it.message ?: "Bad picture") }
+                json(200, JSONObject().put("picture", name))
+            }
             "PUT /api/background/image" -> {
                 val name = runCatching { app.backgrounds.save(request.bytes) }.getOrElse { throw BadRequest(it.message ?: "Bad picture") }
                 json(200, JSONObject().put("image", name))
@@ -287,6 +312,10 @@ class WebServer(private val app: PanelApp) {
                     val brightness = body.getInt("brightness").coerceIn(-1, 100)
                     main.post { screen.setBrightness(brightness) }
                 }
+                if (body.has("showFps")) {
+                    app.prefs.showFps = body.getBoolean("showFps")
+                    FrameStats.showCounter.value = app.prefs.showFps
+                }
                 if (body.has("sleepMode")) {
                     app.prefs.sleepMode = runCatching { SleepMode.valueOf(body.getString("sleepMode")) }
                         .getOrElse { throw BadRequest("Unknown sleep mode") }
@@ -311,6 +340,7 @@ class WebServer(private val app: PanelApp) {
                     .put("idleSeconds", app.prefs.idleSeconds)
                     .put("sleepMode", app.prefs.sleepMode.name)
                     .put("brightness", app.prefs.brightness)
+                    .put("showFps", app.prefs.showFps)
                     .put("adminActive", Kiosk.isAdmin(app)),
             )
             .put("display", display())
@@ -320,6 +350,7 @@ class WebServer(private val app: PanelApp) {
     private fun display(): JSONObject {
         val mode = app.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).mode
         return JSONObject().put("width", mode.physicalWidth).put("height", mode.physicalHeight)
+            .put("densityDpi", app.resources.displayMetrics.densityDpi)
     }
 
     private fun status() = JSONObject()
@@ -428,10 +459,15 @@ class WebServer(private val app: PanelApp) {
                 .put("rows", app.config.layout.value.rows)
                 .put("note", "Tiles sit on whole cells: x 0..columns-w, y 0..rows-h. The grid stretches over the whole screen."),
         )
-        .put("display", display().put("densityDpi", app.resources.displayMetrics.densityDpi))
+        .put("display", display())
         .put("orientations", JSONArray(Orientation.entries.map { it.key }))
         .put("themes", JSONArray(PanelTheme.PRESETS.keys.toList()))
         .put("fonts", JSONArray(listOf("inter", "system")))
+        .put(
+            "theme",
+            JSONObject()
+                .put("fields", "preset, accent (\"#rrggbb\" or \"\"), font, textScale 0.5-2, tileOpacity 0-100, gap 0-32 (dp between cards, default 8), animations (true/false)"),
+        )
         .put(
             "background",
             JSONObject().put("types", JSONArray(Background.TYPES.toList())).put("modes", JSONArray(Background.MODES.toList()))
@@ -521,6 +557,135 @@ class WebServer(private val app: PanelApp) {
         }
     }
 
+    // ---- Themes and page templates ----------------------------------------------------------------
+    //
+    //   GET    /api/themes                  installed themes (and the built-in colour presets)
+    //   POST   /api/themes                  body: a theme zip; installs it (replacing one with its id)
+    //   GET    /api/themes/<id>.zip         an installed theme's package
+    //   GET    /api/themes/current.zip      the current look (and pages, as templates) as a new theme;
+    //                                       ?id=<id>&name=<name>
+    //   POST   /api/themes/<id>/apply       puts the theme's look on the layout (saved; undo goes back)
+    //   DELETE /api/themes/<id>             uninstalls it (not the app's own)
+    //   GET    /api/templates               page templates: the app's and installed themes'
+    //   GET    /api/templates/<id>          one template, tiles and all
+    //   POST   /api/templates/page          {template: <id>, name?}: adds a page made from it
+    private val templates by lazy { Templates(app, app.themes) }
+
+    private fun themeRoute(request: Request): Response {
+        val rest = request.path.removePrefix("/api/themes").trim('/')
+        return when {
+            rest.isEmpty() && request.method == "GET" -> json(
+                200,
+                JSONObject()
+                    .put("presets", JSONArray(ThemeStore.BUILT_IN_PRESETS.toList()))
+                    .put("themes", JSONArray(app.themes.themes.value.values.sortedBy { it.name }.map(::themeJson))),
+            )
+            rest.isEmpty() && request.method == "POST" -> {
+                val theme = runCatching { app.themes.install(request.bytes) }
+                    .getOrElse { throw BadRequest(if (it is java.util.zip.ZipException) "Not a zip file" else it.message ?: "Bad theme") }
+                EventLog.i("theme", "Installed the theme ${theme.name}")
+                json(200, themeJson(theme))
+            }
+            rest == "current.zip" && request.method == "GET" -> {
+                val params = params(request.query)
+                val id = params["id"]?.takeIf { ThemeStore.ID.matches(it) } ?: "my-theme"
+                Response(200, "application/zip", exportTheme(id, params["name"]?.ifBlank { null } ?: "My theme"))
+            }
+            rest.endsWith(".zip") && request.method == "GET" ->
+                app.themes.packageZip(rest.removeSuffix(".zip"))?.let { Response(200, "application/zip", it) } ?: throw NotFound("No theme ${rest.removeSuffix(".zip")}")
+            rest.endsWith("/apply") && request.method == "POST" -> {
+                val theme = app.themes.themes.value[rest.removeSuffix("/apply")] ?: throw NotFound("No theme ${rest.removeSuffix("/apply")}")
+                val layout = app.config.layout.value
+                saveLayout(layout.copy(theme = app.themes.settings(theme), background = app.themes.background(theme) ?: layout.background))
+            }
+            request.method == "DELETE" && '/' !in rest -> {
+                runCatching { app.themes.delete(rest) }.getOrElse {
+                    if (it is NoSuchElementException) throw NotFound(it.message ?: "No theme") else throw BadRequest(it.message ?: "Can't delete")
+                }
+                json(200, JSONObject().put("deleted", rest))
+            }
+            else -> throw NotFound("Not found")
+        }
+    }
+
+    private fun themeJson(theme: ThemeStore.Theme): JSONObject = JSONObject()
+        .put("id", theme.id)
+        .put("name", theme.name)
+        .put("description", theme.json.optString("description"))
+        .put("builtIn", theme.builtIn)
+        .put("colors", paletteJson(PanelTheme.from(ThemeSettings(preset = theme.id), app.themes.themes.value)))
+        .put("settings", app.themes.settings(theme).toJson())
+        .apply { app.themes.background(theme)?.let { put("background", it.toJson()) } }
+        .put("pictures", JSONArray(theme.pictures))
+        .put("templates", JSONArray(theme.templates.map { JSONObject().put("id", it.optString("id")).put("name", it.optString("name")) }))
+
+    private fun paletteJson(p: PanelTheme): JSONObject {
+        fun hex(c: androidx.compose.ui.graphics.Color) = String.format("#%06x", c.toArgb() and 0xFFFFFF)
+        return JSONObject().put("background", hex(p.background)).put("card", hex(p.card)).put("text", hex(p.text))
+            .put("muted", hex(p.muted)).put("accent", hex(p.accent)).put("onAccent", hex(p.onAccent))
+    }
+
+    /** The current look as a theme package, its pictures and background with it, and each page as a template. */
+    private fun exportTheme(id: String, name: String): ByteArray {
+        val layout = app.config.layout.value
+        val palette = PanelTheme.from(layout.theme, app.themes.themes.value)
+        val files = linkedMapOf<String, ByteArray>()
+        val manifest = layout.theme.toJson().apply { remove("preset"); remove("accent") }
+            .put("id", id).put("name", name).put("description", "Made from ${layout.pages.size} page(s) on biwurth ${BuildConfig.VERSION_NAME}.")
+            .put("colors", paletteJson(palette))
+        val background = layout.background.toJson()
+        layout.background.image?.let(app.backgrounds::file)?.let { file ->
+            files["backgrounds/${file.name}"] = file.readBytes()
+            background.put("image", "backgrounds/${file.name}")
+        } ?: background.put("image", "")
+        manifest.put("background", background)
+        files["theme.json"] = manifest.toString(2).toByteArray()
+        layout.pages.forEachIndexed { i, page ->
+            val tiles = JSONArray(
+                page.tiles.map { tile ->
+                    with(Layout) { tile.toJson() }.apply {
+                        remove("id")
+                        val props = getJSONObject("props")
+                        props.optString("picture").takeIf { it.isNotEmpty() }?.let { picture ->
+                            app.pictures.file(picture)?.let { files["pictures/${it.name}"] = it.readBytes() }
+                            props.put("picture", "pictures/$picture")
+                        }
+                    }
+                },
+            )
+            files["templates/page-${i + 1}.json"] = JSONObject().put("name", page.name).put("tiles", tiles).toString(2).toByteArray()
+        }
+        return java.io.ByteArrayOutputStream().also { out ->
+            java.util.zip.ZipOutputStream(out).use { zip ->
+                files.forEach { (path, bytes) ->
+                    zip.putNextEntry(java.util.zip.ZipEntry(path))
+                    zip.write(bytes)
+                    zip.closeEntry()
+                }
+            }
+        }.toByteArray()
+    }
+
+    private fun templateRoute(request: Request): Response {
+        val rest = request.path.removePrefix("/api/templates").trim('/')
+        return when {
+            rest.isEmpty() && request.method == "GET" -> json(200, JSONObject().put("templates", JSONArray(templates.all().map(templates::summary))))
+            rest == "page" && request.method == "POST" -> {
+                val body = JSONObject(request.body)
+                val template = templates.find(body.optString("template")) ?: throw NotFound("No template ${body.optString("template")}")
+                val layout = app.config.layout.value
+                saveLayout(layout.copy(pages = layout.pages + templates.page(template, layout, body.optString("name"))))
+            }
+            request.method == "GET" -> json(200, templates.find(rest) ?: throw NotFound("No template $rest"))
+            else -> throw NotFound("Not found")
+        }
+    }
+
+    // Pictures the saved layout and the undo history use.
+    private fun usedPictures(): Set<String> =
+        (listOf(app.config.layout.value) + app.config.layoutHistory().map { it.second })
+            .flatMap { layout -> layout.pages.flatMap { page -> page.tiles.mapNotNull { it.prop("picture") } } }.toSet()
+
     private fun saveLayout(layout: Layout): Response {
         val report = runBlocking { LayoutCompiler(app).compile(layout) }
         app.config.saveLayout(layout)
@@ -585,26 +750,12 @@ class WebServer(private val app: PanelApp) {
                 if (image != null) {
                     put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
                 }
-            }
-            .put(
-                "sources",
-                // HTTP headers carry API keys: secrets, like the token.
-                JSONArray(
-                    app.config.sources.value.map { source ->
-                        source.toJson().apply {
-                            if (!includeSecrets) getJSONObject("settings").apply {
-                                remove("headers")
-                                remove("token")
-                            }
-                        }
-                    },
-                ),
-            )
-            .apply {
-                val image = app.config.layout.value.background.image?.let(app.backgrounds::file)
-                if (image != null) {
-                    put("backgroundImage", android.util.Base64.encodeToString(image.readBytes(), android.util.Base64.NO_WRAP))
+                // Empty space tiles' pictures, under their names, so the layout finds them again.
+                val pictures = JSONObject()
+                app.config.layout.value.pages.flatMap { it.tiles }.mapNotNull { it.prop("picture") }.toSet().forEach { name ->
+                    app.pictures.file(name)?.let { pictures.put(name, android.util.Base64.encodeToString(it.readBytes(), android.util.Base64.NO_WRAP)) }
                 }
+                if (pictures.length() > 0) put("pictures", pictures)
             }
             .put(
                 "screen",
@@ -653,6 +804,12 @@ class WebServer(private val app: PanelApp) {
                 main.post { app.screen.setBrightness(brightness) }
             }
             main.post(app.screen::restartIdleTimer)
+        }
+        backup.optJSONObject("pictures")?.let { pictures ->
+            for (name in pictures.keys()) {
+                runCatching { app.pictures.restore(name, android.util.Base64.decode(pictures.getString(name), android.util.Base64.DEFAULT)) }
+                    .onFailure { EventLog.w("web", "Skipping picture $name from the backup", it) }
+            }
         }
         backup.optJSONObject("layout")?.let {
             var layout = Layout.fromJson(it)

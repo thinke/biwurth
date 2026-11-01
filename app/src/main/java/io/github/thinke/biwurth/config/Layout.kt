@@ -38,7 +38,7 @@ data class Layout(
         .put("rows", rows)
         .put("orientation", orientation.key)
         .put("background", background.toJson())
-        .put("theme", JSONObject().put("preset", theme.preset).put("accent", theme.accent ?: "").put("font", theme.font).put("textScale", theme.textScale.toDouble()).put("tileOpacity", theme.tileOpacity))
+        .put("theme", theme.toJson())
         .put(
             "pages",
             JSONArray(
@@ -74,6 +74,10 @@ data class Layout(
                         font = if (theme?.optString("font") == "system") "system" else "inter",
                         textScale = (theme?.optDouble("textScale", 1.0) ?: 1.0).toFloat().coerceIn(0.5f, 2f),
                         tileOpacity = (theme?.optInt("tileOpacity", 100) ?: 100).coerceIn(0, 100),
+                        gap = (theme?.optInt("gap", 8) ?: 8).coerceIn(0, 32),
+                        animations = theme?.optBoolean("animations", true) ?: true,
+                        cards = theme?.optBoolean("cards", true) ?: true,
+                        tiles = TileStyle.fromJson(theme?.optJSONObject("tiles")),
                     )
                 },
                 pages = (0 until pages.length()).mapNotNull { pages.optJSONObject(it) }.mapIndexed { i, page ->
@@ -149,7 +153,83 @@ data class ThemeSettings(
     val textScale: Float = 1f,
     /** How opaque tile backgrounds are, 0–100 %; a tile's own "opacity" overrides it. */
     val tileOpacity: Int = 100,
-)
+    /** Space between cards, and around the page's edge, in dp. */
+    val gap: Int = 8,
+    /** Graphs drawing in, values rolling to new ones, live dots pulsing; off for a still panel. */
+    val animations: Boolean = true,
+    /** Whether tiles have a card behind them unless a tile says otherwise (its "background"). */
+    val cards: Boolean = true,
+    /** How tiles are drawn: corners, padding, border, graph lines, value weight. */
+    val tiles: TileStyle = TileStyle(),
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("preset", preset).put("accent", accent ?: "").put("font", font).put("textScale", textScale.toDouble())
+        .put("tileOpacity", tileOpacity).put("gap", gap).put("animations", animations).put("cards", cards).put("tiles", tiles.toJson())
+}
+
+/**
+ * The look of tiles, from a theme or set on the layout (theme.tiles). Colours are "#rrggbb";
+ * an empty [borderColor] borrows the theme's muted colour, and empty [graphColors] the theme's
+ * accent followed by a built-in set.
+ */
+data class TileStyle(
+    val radius: Int = 16,
+    val padding: Int = 12,
+    val borderWidth: Int = 0,
+    val borderColor: String = "",
+    val graphLineWidth: Int = 2,
+    val graphFill: Boolean = true,
+    val graphColors: List<String> = emptyList(),
+    /** "light", "regular" or "bold": the big numbers' weight. */
+    val valueWeight: String = "light",
+    /** Card shadow in dp; 0 for none. */
+    val shadow: Int = 0,
+    /** Tile titles: "regular", "medium" or "bold"; "muted" or "text" colour; a line under them. */
+    val titleWeight: String = "medium",
+    val titleColor: String = "muted",
+    val titleDivider: Boolean = false,
+    /** "fill": a toggle lights up in the accent when on; "switch": it shows a switch instead. */
+    val toggleStyle: String = "fill",
+    /** The clock's weight: "thin", "light" or "regular". */
+    val clockWeight: String = "thin",
+    /** Dashed guide lines across graphs. */
+    val graphGrid: Boolean = false,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("radius", radius).put("padding", padding)
+        .put("borderWidth", borderWidth).put("borderColor", borderColor)
+        .put("graphLineWidth", graphLineWidth).put("graphFill", graphFill).put("graphColors", JSONArray(graphColors))
+        .put("valueWeight", valueWeight)
+        .put("shadow", shadow).put("titleWeight", titleWeight).put("titleColor", titleColor).put("titleDivider", titleDivider)
+        .put("toggleStyle", toggleStyle).put("clockWeight", clockWeight).put("graphGrid", graphGrid)
+
+    companion object {
+        private val HEX = Regex("#[0-9a-fA-F]{6}")
+        val WEIGHTS = setOf("light", "regular", "bold")
+
+        fun fromJson(json: JSONObject?): TileStyle {
+            if (json == null) return TileStyle()
+            return TileStyle(
+                radius = json.optInt("radius", 16).coerceIn(0, 48),
+                padding = json.optInt("padding", 12).coerceIn(0, 32),
+                borderWidth = json.optInt("borderWidth", 0).coerceIn(0, 8),
+                borderColor = json.optString("borderColor").takeIf { it.matches(HEX) }.orEmpty(),
+                graphLineWidth = json.optInt("graphLineWidth", 2).coerceIn(1, 8),
+                graphFill = json.optBoolean("graphFill", true),
+                graphColors = json.optJSONArray("graphColors")?.let { a -> (0 until a.length()).map { a.optString(it) } }
+                    ?.filter { it.matches(HEX) }?.take(12).orEmpty(),
+                valueWeight = json.optString("valueWeight").takeIf { it in WEIGHTS } ?: "light",
+                shadow = json.optInt("shadow", 0).coerceIn(0, 24),
+                titleWeight = json.optString("titleWeight").takeIf { it in setOf("regular", "medium", "bold") } ?: "medium",
+                titleColor = json.optString("titleColor").takeIf { it in setOf("muted", "text") } ?: "muted",
+                titleDivider = json.optBoolean("titleDivider", false),
+                toggleStyle = json.optString("toggleStyle").takeIf { it in setOf("fill", "switch") } ?: "fill",
+                clockWeight = json.optString("clockWeight").takeIf { it in setOf("thin", "light", "regular") } ?: "thin",
+                graphGrid = json.optBoolean("graphGrid", false),
+            )
+        }
+    }
+}
 
 /**
  * Behind all pages: the theme's colour, one colour, a gradient (optionally slowly turning) or a

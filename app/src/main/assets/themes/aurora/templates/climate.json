@@ -1,0 +1,16 @@
+{"name": "Rooms with icons", "description": "Temperature and humidity for two rooms, each with an icon, over a 24-hour graph.",
+ "tiles": [
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/thermometer.svg"}},
+  {"type": "entity", "w": 2, "h": 2, "props": {"name": "Living room", "decimals": "1"}},
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/drop.svg"}},
+  {"type": "entity", "w": 2, "h": 2, "props": {"name": "Humidity", "decimals": "0"}},
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/bed.svg"}},
+  {"type": "entity", "w": 2, "h": 2, "props": {"name": "Bedroom", "decimals": "1"}},
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/drop.svg"}},
+  {"type": "entity", "w": 2, "h": 2, "props": {"name": "Humidity", "decimals": "0"}},
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/sun.svg"}},
+  {"type": "entity", "w": 5, "h": 2, "props": {"name": "Outdoor", "decimals": "1"}},
+  {"type": "space", "w": 1, "h": 2, "props": {"picture": "pictures/home.svg"}},
+  {"type": "entity", "w": 5, "h": 2, "props": {"name": "Indoor", "decimals": "1"}},
+  {"type": "graph", "w": 12, "h": 2, "props": {"name": "Temperature, 24 h", "decimals": "1"}}
+ ]}

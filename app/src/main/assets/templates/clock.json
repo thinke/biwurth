@@ -1,0 +1,5 @@
+{"name": "Clock & weather", "description": "A big clock over the weather: for a bedroom or a hallway.",
+ "tiles": [
+  {"type": "clock", "w": 12, "h": 5},
+  {"type": "weather", "w": 12, "h": 3, "props": {"entity": ""}}
+ ]}

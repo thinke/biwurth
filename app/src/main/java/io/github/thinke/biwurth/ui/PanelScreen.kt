@@ -26,6 +26,9 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import io.github.thinke.biwurth.panel
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +51,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettings: () -> Unit) {
-    val theme = PanelTheme.from(layout.theme)
+    val installed by LocalContext.current.panel.themes.themes.collectAsState()
+    val theme = PanelTheme.from(layout.theme, installed)
     val pager = rememberPagerState(initialPage = currentPage.value) { layout.pages.size }
 
     // Follow page changes from outside (sleep, Home Assistant) and report swipes back.
@@ -64,6 +68,9 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
         LocalTextStyle provides panelTextStyle(layout.theme.font),
         LocalTextScale provides layout.theme.textScale,
         LocalTileOpacity provides layout.theme.tileOpacity / 100f,
+        LocalAnimations provides layout.theme.animations,
+        LocalCards provides layout.theme.cards,
+        LocalTileStyle provides layout.theme.tiles,
     ) {
         Box(Modifier.fillMaxSize()) {
             PanelBackground(layout.background, theme)
@@ -100,12 +107,16 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
  */
 @Composable
 fun PanelPreview(layout: Layout, page: Page) {
-    val theme = PanelTheme.from(layout.theme)
+    val installed by LocalContext.current.panel.themes.themes.collectAsState()
+    val theme = PanelTheme.from(layout.theme, installed)
     CompositionLocalProvider(
         LocalPanelTheme provides theme,
         LocalTextStyle provides panelTextStyle(layout.theme.font),
         LocalTextScale provides layout.theme.textScale,
         LocalTileOpacity provides layout.theme.tileOpacity / 100f,
+        LocalAnimations provides layout.theme.animations,
+        LocalCards provides layout.theme.cards,
+        LocalTileStyle provides layout.theme.tiles,
         LocalPreview provides true,
     ) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
@@ -120,7 +131,9 @@ val LocalPreview = staticCompositionLocalOf { false }
 
 @Composable
 private fun PageView(layout: Layout, page: Page) {
-    BoxWithConstraints(Modifier.fillMaxSize().padding(GAP)) {
+    // Half the gap around each tile and half around the page: the gap between cards and at the edge.
+    val half = (layout.theme.gap / 2f).dp
+    BoxWithConstraints(Modifier.fillMaxSize().padding(half)) {
         val cellWidth = maxWidth / layout.columns
         val cellHeight = maxHeight / layout.rows
         page.tiles.forEach { tile ->
@@ -129,7 +142,7 @@ private fun PageView(layout: Layout, page: Page) {
                     Modifier
                         .offset(cellWidth * tile.x, cellHeight * tile.y)
                         .size(cellWidth * tile.w, cellHeight * tile.h)
-                        .padding(GAP),
+                        .padding(half),
                 ) {
                     TileView(tile)
                 }
@@ -170,4 +183,3 @@ private fun SettingsCorner(onOpen: () -> Unit) {
     )
 }
 
-private val GAP = 4.dp

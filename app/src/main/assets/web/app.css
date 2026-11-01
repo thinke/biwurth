@@ -185,3 +185,18 @@ body.wide-aside-log main { grid-template-columns: minmax(0, 1fr) min(760px, 55vw
 .source-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .source-row .what { flex: 1; min-width: 0; }
 .source-row .what .status { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.picture-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.picture-preview { max-width: 100%; max-height: 120px; object-fit: contain; align-self: flex-start;
+  background: repeating-conic-gradient(#ffffff10 0% 25%, transparent 0% 50%) 50% / 16px 16px; border-radius: 6px; }
+
+.theme-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.theme-row .grow { flex: 1 1 70%; min-width: 0; }
+.theme-row .muted { font-size: 12px; }
+.swatches { display: grid; grid-template-columns: repeat(2, 12px); gap: 2px; }
+.swatches span { width: 12px; height: 12px; border-radius: 3px; border: 1px solid #ffffff22; }
+#addTemplate { max-width: 220px; }
+
+table.bench { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+table.bench th, table.bench td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); }
+table.bench th:first-child, table.bench td:first-child { text-align: left; }

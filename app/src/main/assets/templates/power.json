@@ -1,0 +1,10 @@
+{"name": "Power", "description": "Six plugs with their power, and a 24-hour graph of them all.",
+ "tiles": [
+  {"type": "toggle", "w": 4, "h": 2, "props": {"name": "Plug 1", "decimals": "0"}},
+  {"type": "toggle", "w": 4, "h": 2, "props": {"name": "Plug 2", "decimals": "0"}},
+  {"type": "toggle", "w": 4, "h": 2, "props": {"name": "Plug 3", "decimals": "0"}},
+  {"type": "toggle", "w": 4, "h": 2, "props": {"name": "Plug 4", "decimals": "0"}},
+  {"type": "toggle", "w": 4, "h": 2, "props": {"name": "Plug 5", "decimals": "0"}},
+  {"type": "entity", "w": 4, "h": 2, "props": {"name": "Electricity now", "decimals": "1"}},
+  {"type": "graph", "w": 12, "h": 4, "props": {"name": "Power use, 24 h", "unit": "W", "decimals": "0"}}
+ ]}

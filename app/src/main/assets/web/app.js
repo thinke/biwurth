@@ -3,18 +3,26 @@
 // Tile types: label, default size in cells, settings, and which entity domains suit them.
 const TYPES = {
   clock: { label: 'Clock', size: [4, 2], fields: ['date', 'opacity', 'textSize'] },
-  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'opacity', 'textSize'] },
+  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'unit', 'decimals', 'opacity', 'background', 'textSize'] },
   toggle: {
-    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'measurement', 'unit', 'decimals', 'opacity', 'textSize'],
+    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
-    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'hours', 'unit', 'decimals', 'opacity', 'textSize'],
+    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'hours', 'unit', 'decimals', 'opacity', 'background', 'textSize'],
     domains: ['sensor', 'input_number', 'number'], multi: 'line', labels: true,
   },
-  weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'textSize'], domains: ['weather'] },
-  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'days', 'opacity', 'textSize'], domains: ['calendar'], multi: 'calendar' },
+  weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'background', 'textSize'], domains: ['weather'] },
+  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'days', 'opacity', 'background', 'textSize'], domains: ['calendar'], multi: 'calendar' },
   camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
+  space: {
+    label: 'Empty space', size: [1, 1], fields: ['picture', 'fit', 'opacity'],
+    // The same props as others, with this tile's own meaning.
+    overrides: {
+      fit: { label: 'Picture', options: [['', 'Show all of it'], ['cover', 'Fill the tile'], ['stretch', 'Stretch to the tile']] },
+      opacity: { label: 'Picture opacity (%)', type: 'number', placeholder: '100' },
+    },
+  },
 };
 
 const FIELDS = {
@@ -35,6 +43,7 @@ const FIELDS = {
     options: [['', 'Auto (fits the tile)'], ['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xl', 'Extra large']],
   },
   fit: { label: 'Picture', options: [['', 'Fill the tile'], ['contain', 'Show all of it']] },
+  background: { label: 'Background', options: [['', 'As the layout (Tiles)'], ['card', 'Card'], ['none', 'None (on the panel background)']] },
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -96,6 +105,7 @@ $('#login form').addEventListener('submit', (event) => {
 async function load() {
   config = await api('GET', '/api/config');
   layout = structuredClone(config.layout);
+  loadThemes();
   $('#version').textContent = config.version;
   pageIndex = Math.min(pageIndex, layout.pages.length - 1);
   setDirty(false);
@@ -213,6 +223,7 @@ function showReport(report) {
   const box = $('#report');
   const summary = document.createElement('div');
   summary.textContent = `Compiled in ${report.millis} ms, preloaded ${report.preloaded} tile${report.preloaded === 1 ? '' : 's'}` +
+    (report.cost ? ` · drawing ${report.cost.graphPointsDrawn} of ${report.cost.graphPoints} graph readings, pictures ${Math.round(report.cost.pictureKb / 1024 * 10) / 10} MB, ${report.cost.liveStreams} live stream${report.cost.liveStreams === 1 ? '' : 's'}` : '') +
     (report.warnings.length ? ` · ${report.warnings.length} warning${report.warnings.length === 1 ? '' : 's'}:` : ' · no warnings');
   const list = document.createElement('ul');
   list.replaceChildren(...report.warnings.map((w) => {
@@ -291,7 +302,23 @@ function tileElement(tile) {
   const el = document.createElement('div');
   el.className = 'tile' + (tile.id === selectedId ? ' selected' : '');
   const opacity = (tile.props.opacity !== undefined && tile.props.opacity !== '' ? Number(tile.props.opacity) : (layout.theme.tileOpacity ?? 100)) / 100;
-  el.style.backgroundColor = `rgba(26, 28, 31, ${opacity})`;
+  el.style.backgroundColor = tile.props.background === 'none' ? 'transparent' : `rgba(26, 28, 31, ${opacity})`;
+  const cardless = tile.props.background === 'none' || (tile.props.background !== 'card' && layout.theme.cards === false);
+  if (cardless) el.style.backgroundColor = 'transparent';
+  if (cardless || tile.type === 'space') el.style.border = '1px dashed #ffffff55';
+  if (tile.type === 'space') {
+    el.style.backgroundColor = 'transparent';
+    if (tile.props.picture) {
+      const name = tile.props.picture;
+      pictureUrl(name).then((url) => {
+        if (!url) return;
+        el.style.backgroundImage = `url("${url}")`;
+        el.style.backgroundRepeat = 'no-repeat';
+        el.style.backgroundPosition = 'center';
+        el.style.backgroundSize = { cover: 'cover', stretch: '100% 100%' }[tile.props.fit] || 'contain';
+      });
+    }
+  }
   place(el, tile);
   const ids = entityIds(tile);
   const e = ids.length === 1 ? entity(ids[0]) : null;
@@ -314,11 +341,21 @@ function tileElement(tile) {
   return el;
 }
 
+// The gap as the panel shows it, scaled to the board: half of it around each tile.
 function place(el, tile) {
-  el.style.left = `calc(${(tile.x / layout.columns) * 100}% + 2px)`;
-  el.style.top = `calc(${(tile.y / layout.rows) * 100}% + 2px)`;
-  el.style.width = `calc(${(tile.w / layout.columns) * 100}% - 4px)`;
-  el.style.height = `calc(${(tile.h / layout.rows) * 100}% - 4px)`;
+  const half = boardGap() / 2;
+  el.style.left = `calc(${(tile.x / layout.columns) * 100}% + ${half}px)`;
+  el.style.top = `calc(${(tile.y / layout.rows) * 100}% + ${half}px)`;
+  el.style.width = `calc(${(tile.w / layout.columns) * 100}% - ${2 * half}px)`;
+  el.style.height = `calc(${(tile.h / layout.rows) * 100}% - ${2 * half}px)`;
+}
+
+// The panel's gap in dp, in board pixels: the board is the panel's screen, shrunk to fit.
+function boardGap() {
+  const { width, height, densityDpi } = config.display;
+  const across = layout.orientation.includes('portrait') ? Math.min(width, height) : Math.max(width, height);
+  const acrossDp = across / ((densityDpi || 160) / 160);
+  return (layout.theme.gap ?? 8) * (board.clientWidth || acrossDp) / acrossDp;
 }
 
 // Moves and resizes snap to whole cells and never overlap another tile.
@@ -389,9 +426,13 @@ function renderTileForm() {
   form.append(labelled('Type', typeSelect));
 
   for (const name of type.fields) {
-    const field = FIELDS[name];
+    const field = type.overrides?.[name] || FIELDS[name];
     if (name === 'entity' && type.multi) {
       form.append(multiEntityEditor(tile, type));
+      continue;
+    }
+    if (name === 'picture') {
+      form.append(pictureEditor(tile));
       continue;
     }
     let input;
@@ -433,6 +474,80 @@ function renderTileForm() {
     renderTileForm();
   });
   form.append(remove);
+}
+
+// ---- Pictures (Empty space tiles) --------------------------------------------------------------
+
+// blob: URLs of pictures on the tablet, for previews: they need the key, so an <img src> can't load them.
+const pictureUrls = new Map();
+
+async function pictureUrl(name) {
+  if (!pictureUrls.has(name)) {
+    pictureUrls.set(name, fetch(`/api/picture/${encodeURIComponent(name)}`, { headers: { Authorization: `Bearer ${key}` } })
+      .then((r) => (r.ok ? r.blob() : null)).then((b) => (b ? URL.createObjectURL(b) : null)));
+  }
+  return pictureUrls.get(name);
+}
+
+function pictureEditor(tile) {
+  const wrap = document.createElement('div');
+  wrap.className = 'picture-field';
+  const title = document.createElement('div');
+  title.className = 'muted';
+  title.textContent = 'Picture (JPEG, PNG, WebP or SVG)';
+  const preview = document.createElement('img');
+  preview.className = 'picture-preview';
+  preview.hidden = true;
+  const state = document.createElement('span');
+  state.className = 'muted';
+  const choose = document.createElement('button');
+  choose.type = 'button';
+  choose.textContent = 'Choose picture…';
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.textContent = 'Remove';
+  const file = document.createElement('input');
+  file.type = 'file';
+  file.accept = 'image/jpeg,image/png,image/webp,image/svg+xml,.svg';
+  file.hidden = true;
+
+  const show = () => {
+    const name = tile.props.picture;
+    clear.hidden = !name;
+    state.textContent = name ? '' : 'None: the space stays empty.';
+    preview.hidden = !name;
+    if (name) pictureUrl(name).then((url) => { if (url && tile.props.picture === name) preview.src = url; });
+  };
+  choose.addEventListener('click', () => file.click());
+  clear.addEventListener('click', () => {
+    delete tile.props.picture;
+    setDirty(true);
+    renderBoard();
+    show();
+  });
+  file.addEventListener('change', async () => {
+    const picked = file.files[0];
+    if (!picked) return;
+    state.textContent = 'Uploading…';
+    try {
+      const response = await fetch('/api/picture', { method: 'PUT', headers: { Authorization: `Bearer ${key}` }, body: picked });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || response.statusText);
+      tile.props.picture = result.picture;
+      setDirty(true);
+      renderBoard();
+      show();
+    } catch (e) {
+      state.textContent = `Upload failed: ${e.message}`;
+    }
+    file.value = '';
+  });
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.append(choose, clear, state);
+  wrap.append(title, preview, row, file);
+  show();
+  return wrap;
 }
 
 // One row per entity (a graph line or a calendar), stored comma separated in props.entity and,
@@ -585,6 +700,20 @@ function renderLayoutForm() {
   $('#font').value = layout.theme.font || 'inter';
   $('#textScale').value = String(layout.theme.textScale ?? 1);
   $('#tileOpacity').value = layout.theme.tileOpacity ?? 100;
+  $('#gap').value = String(layout.theme.gap ?? 8);
+  $('#animations').checked = layout.theme.animations ?? true;
+  const tiles = layout.theme.tiles || {};
+  $('#cards').checked = layout.theme.cards ?? true;
+  $('#radius').value = tiles.radius ?? 16;
+  $('#cardPadding').value = tiles.padding ?? 12;
+  $('#borderWidth').value = String(Math.min(tiles.borderWidth ?? 0, 3));
+  $('#valueWeight').value = tiles.valueWeight || 'light';
+  $('#shadow').value = String([0, 1, 4, 8].reduce((best, v) => (Math.abs(v - (tiles.shadow ?? 0)) < Math.abs(best - (tiles.shadow ?? 0)) ? v : best), 0));
+  $('#titleWeight').value = tiles.titleWeight || 'medium';
+  $('#toggleStyle').value = tiles.toggleStyle || 'fill';
+  $('#clockWeight').value = tiles.clockWeight || 'thin';
+  $('#titleDivider').checked = !!tiles.titleDivider;
+  $('#graphGrid').checked = !!tiles.graphGrid;
   renderBackgroundForm();
   $('#accentDefault').checked = !layout.theme.accent;
   $('#accent').value = layout.theme.accent || THEME_ACCENTS[layout.theme.preset] || '#e0a030';
@@ -630,23 +759,182 @@ const THEME_ACCENTS = { dark: '#e0a030', graphite: '#5aa9e6', nord: '#88c0d0', f
 
 function updateTheme() {
   layout.theme = {
+    // Keep what the form doesn't show (a theme's graph colours, border colour).
+    ...layout.theme,
     preset: $('#theme').value,
     accent: $('#accentDefault').checked ? '' : $('#accent').value,
     font: $('#font').value,
     textScale: parseFloat($('#textScale').value),
     tileOpacity: parseInt($('#tileOpacity').value, 10),
+    gap: parseInt($('#gap').value, 10),
+    animations: $('#animations').checked,
+    cards: $('#cards').checked,
+    tiles: {
+      ...(layout.theme.tiles || {}),
+      radius: parseInt($('#radius').value, 10),
+      padding: parseInt($('#cardPadding').value, 10),
+      borderWidth: parseInt($('#borderWidth').value, 10),
+      valueWeight: $('#valueWeight').value,
+      shadow: parseInt($('#shadow').value, 10),
+      titleWeight: $('#titleWeight').value,
+      toggleStyle: $('#toggleStyle').value,
+      clockWeight: $('#clockWeight').value,
+      titleDivider: $('#titleDivider').checked,
+      graphGrid: $('#graphGrid').checked,
+    },
   };
   setDirty(true);
   renderLayoutForm();
 }
-$('#theme').addEventListener('change', updateTheme);
+for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
+for (const id of ['#radius', '#cardPadding']) $(id).addEventListener('change', updateTheme);
+
+// Picking an installed theme puts its whole look on the layout; a built-in preset only its colours.
+$('#theme').addEventListener('change', () => {
+  const theme = themes.find((t) => t.id === $('#theme').value);
+  if (theme) applyTheme(theme);
+  else updateTheme();
+});
 $('#font').addEventListener('change', updateTheme);
 $('#textScale').addEventListener('change', updateTheme);
 $('#tileOpacity').addEventListener('input', () => { updateTheme(); renderBoard(); });
+$('#gap').addEventListener('change', () => { updateTheme(); renderBoard(); });
+$('#animations').addEventListener('change', updateTheme);
 $('#accent').addEventListener('input', updateTheme);
 $('#accentDefault').addEventListener('change', () => {
   if (!$('#accentDefault').checked) $('#accent').value = THEME_ACCENTS[$('#theme').value];
   updateTheme();
+});
+
+// ---- Themes and templates -----------------------------------------------------------------------
+
+let themes = [];
+let templates = [];
+
+async function loadThemes() {
+  try {
+    themes = (await api('GET', '/api/themes')).themes;
+    templates = (await api('GET', '/api/templates')).templates;
+  } catch (e) {
+    $('#themeStatus').textContent = e.message;
+    return;
+  }
+  $('#themeGroup').replaceChildren(...themes.map((t) => new Option(t.name, t.id)));
+  if (layout) $('#theme').value = layout.theme.preset;
+  $('#themeList').replaceChildren(...themes.map(themeRow));
+  const bySource = Map.groupBy ? Map.groupBy(templates, (t) => t.source) : new Map([['', templates]]);
+  $('#addTemplate').replaceChildren(new Option('+ Page from template…', ''), ...[...bySource].map(([source, list]) => {
+    const group = document.createElement('optgroup');
+    group.label = source;
+    group.append(...list.map((t) => new Option(t.name, t.id)));
+    return group;
+  }));
+}
+
+function themeRow(theme) {
+  const row = document.createElement('div');
+  row.className = 'theme-row';
+  const swatches = document.createElement('div');
+  swatches.className = 'swatches';
+  for (const c of ['background', 'card', 'accent', 'text']) {
+    const s = document.createElement('span');
+    s.style.background = theme.colors[c];
+    swatches.append(s);
+  }
+  const text = document.createElement('div');
+  text.className = 'grow';
+  const name = document.createElement('b');
+  name.textContent = theme.name + (theme.builtIn ? ' (built in)' : '');
+  const about = document.createElement('div');
+  about.className = 'muted';
+  about.textContent = [theme.description, `${theme.pictures.length} pictures, ${theme.templates.length} templates`].filter(Boolean).join(' · ');
+  text.append(name, about);
+  const apply = button('Use', () => { applyTheme(theme); $('#theme').value = theme.id; });
+  const get = button('Download', () => downloadFile(`/api/themes/${theme.id}.zip`, `${theme.id}.zip`));
+  row.append(swatches, text, apply, get);
+  if (!theme.builtIn) {
+    row.append(button('Delete', async () => {
+      if (!confirm(`Uninstall the theme “${theme.name}”? Tiles using its pictures will show nothing.`)) return;
+      await api('DELETE', `/api/themes/${theme.id}`).catch((e) => { $('#themeStatus').textContent = e.message; });
+      loadThemes();
+    }, 'danger'));
+  }
+  return row;
+}
+
+function button(label, onClick, cls) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = label;
+  if (cls) b.className = cls;
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function applyTheme(theme) {
+  layout.theme = structuredClone(theme.settings);
+  if (theme.background) layout.background = structuredClone(theme.background);
+  setDirty(true);
+  render();
+  $('#themeStatus').textContent = `${theme.name} is on the layout. Compile & save to show it on the panel.`;
+}
+
+async function downloadFile(path, name) {
+  const response = await fetch(path, { headers: { Authorization: `Bearer ${key}` } });
+  if (!response.ok) {
+    $('#themeStatus').textContent = (await response.json().catch(() => ({}))).error || response.statusText;
+    return;
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+$('#themeImport').addEventListener('click', () => $('#themeFile').click());
+$('#themeFile').addEventListener('change', async () => {
+  const file = $('#themeFile').files[0];
+  if (!file) return;
+  $('#themeStatus').textContent = 'Installing…';
+  try {
+    const response = await fetch('/api/themes', { method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: file });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || response.statusText);
+    $('#themeStatus').textContent = `Installed ${result.name}: ${result.pictures.length} pictures, ${result.templates.length} templates. Pick it under Theme to use it.`;
+    loadThemes();
+  } catch (e) {
+    $('#themeStatus').textContent = `Couldn't install: ${e.message}`;
+  }
+  $('#themeFile').value = '';
+});
+
+$('#themeExport').addEventListener('click', () => {
+  if (dirty && !confirm('The export is of the saved layout; unsaved changes aren\'t in it. Export anyway?')) return;
+  const name = prompt('Name for the theme', 'My theme');
+  if (!name) return;
+  const id = name.toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'my-theme';
+  downloadFile(`/api/themes/current.zip?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name)}`, `${id}.zip`);
+});
+
+// A page from a template: the tablet places tiles that have no position (the layout check does it).
+$('#addTemplate').addEventListener('change', async () => {
+  const id = $('#addTemplate').value;
+  $('#addTemplate').value = '';
+  if (!id) return;
+  try {
+    const template = await api('GET', `/api/templates/${id}`);
+    const page = { id: uid(), name: template.name, tiles: template.tiles.map((t) => ({ ...t, id: uid(), props: { ...(t.props || {}) } })) };
+    const checked = await api('POST', '/api/layout/check', { ...layout, pages: [...layout.pages, page] });
+    layout.pages.push(checked.layout.pages[checked.layout.pages.length - 1]);
+    pageIndex = layout.pages.length - 1;
+    selectedId = null;
+    setDirty(true);
+    render();
+  } catch (e) {
+    alert(`Couldn't add the template: ${e.message}`);
+  }
 });
 
 // ---- Background ---------------------------------------------------------------------------------
@@ -1302,6 +1590,7 @@ function fillSettings() {
   $('#brightnessSystem').checked = s.brightness < 0;
   $('#brightness').value = s.brightness < 0 ? 80 : s.brightness;
   $('#brightness').disabled = s.brightness < 0;
+  $('#showFps').checked = !!s.showFps;
 }
 
 async function saveSettings(form, path, body) {
@@ -1395,7 +1684,42 @@ $('#tab-screen').addEventListener('submit', (event) => {
     idleSeconds: parseInt($('#idle').value, 10),
     sleepMode: $('#sleepMode').value,
     brightness: $('#brightnessSystem').checked ? -1 : parseInt($('#brightness').value, 10),
+    showFps: $('#showFps').checked,
   });
+});
+
+// Benchmark: results stack up in a table, newest first, to compare runs.
+$('#benchRun').addEventListener('click', async () => {
+  const button = $('#benchRun');
+  const seconds = Math.min(60, Math.max(5, parseInt($('#benchSeconds').value, 10) || 15));
+  const query = `seconds=${seconds}&mode=${$('#benchMode').value}&warm=${$('#benchWarm').checked ? 1 : 0}`;
+  button.disabled = true;
+  button.textContent = `Running ${seconds + 2} s…`;
+  try {
+    const r = await api('POST', `/api/benchmark?${query}`);
+    let table = $('#benchResults');
+    if (!table) {
+      table = document.createElement('table');
+      table.id = 'benchResults';
+      table.className = 'bench';
+      table.innerHTML = '<thead><tr><th>Test</th><th>fps</th><th>Median</th><th>90 %</th><th>99 %</th><th>Slow</th><th>CPU</th></tr></thead><tbody></tbody>';
+      button.parentElement.after(table);
+    }
+    const row = document.createElement('tr');
+    for (const cell of [`${r.mode}${r.warm ? ' (warm)' : ''}`, r.fps, `${r.frameMs.p50} ms`, `${r.frameMs.p90} ms`, `${r.frameMs.p99} ms`,
+      `${r.overBudgetPercent} %`, `${r.cpuPercentOfCore} %`]) {
+      const td = document.createElement('td');
+      td.textContent = cell;
+      row.append(td);
+    }
+    row.title = `${r.frames} frames in ${r.seconds} s at ${r.refreshHz} Hz (budget ${r.budgetMs} ms); CPU as % of one of ${r.cores} cores; theme ${r.layout.theme}, background ${r.layout.background}`;
+    table.tBodies[0].prepend(row);
+  } catch (e) {
+    alert(`Benchmark failed: ${e.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Run';
+  }
 });
 
 // Opens Android's "Activate device admin" dialog on the tablet; reload once it's confirmed there.

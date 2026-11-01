@@ -3,7 +3,11 @@ package io.github.thinke.biwurth
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.Tile
 import io.github.thinke.biwurth.config.TileTypes
+import io.github.thinke.biwurth.ui.PictureCache
+import io.github.thinke.biwurth.ui.backgroundPixels
 import io.github.thinke.biwurth.ui.preloadSnapshot
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -30,7 +34,7 @@ class LayoutCompiler(private val app: PanelApp) {
             }
     }
 
-    class Report(val issues: List<Issue>, val preloaded: Int, val millis: Long) {
+    class Report(val issues: List<Issue>, val preloaded: Int, val millis: Long, val cost: JSONObject? = null) {
         val warnings: List<String> get() = issues.map { it.message }
 
         fun toJson(): JSONObject = JSONObject()
@@ -38,6 +42,7 @@ class LayoutCompiler(private val app: PanelApp) {
             .put("issues", JSONArray(issues.map { it.toJson() }))
             .put("preloaded", preloaded)
             .put("millis", millis)
+            .apply { cost?.let { put("cost", it) } }
     }
 
     /** Checks [layout] and, with [preload], loads what its tiles show into their caches. */
@@ -90,6 +95,9 @@ class LayoutCompiler(private val app: PanelApp) {
                             warnings += issue("not_numeric", "${label(tile)}: $id isn't numeric (\"${entity.state}\"), so it can't be graphed.", tile, id)
                     }
                 }
+                if (tile.type == "space" && tile.prop("picture")?.let(app.pictures::file) == null && tile.prop("picture") != null) {
+                    warnings += issue("picture_missing", "${label(tile)}: the picture ${tile.prop("picture")} isn't on the tablet; upload it again.", tile)
+                }
                 if (tile.type == "camera" && tile.prop("camera")?.let(app.config.cameras.value::streamUrl) == null) {
                     warnings += issue("no_stream", "${label(tile)} needs a go2rtc address (Cameras tab) or a full rtsp:// URL.", tile)
                 }
@@ -98,8 +106,10 @@ class LayoutCompiler(private val app: PanelApp) {
         if (!preload) return Report(warnings, 0, System.currentTimeMillis() - started)
 
         val tiles = layout.pages.flatMap { it.tiles }
+        val screen = Screen.of(app, layout)
         val loads = coroutineScope {
-            tiles.mapNotNull { tile -> preload(tile)?.let { load -> async { runCatching { load() }.isSuccess } } }
+            (tiles.mapNotNull { tile -> preload(tile, screen) } + listOfNotNull(backgroundPreload(layout, screen)))
+                .map { load -> async { runCatching { load() }.isSuccess } }
                 .let { jobs ->
                     // Past the limit, give up on the stragglers: their tiles load when shown.
                     withTimeoutOrNull(PRELOAD_TIMEOUT_MS) { jobs.awaitAll() }
@@ -108,10 +118,65 @@ class LayoutCompiler(private val app: PanelApp) {
         }
         val failed = loads.count { !it }
         if (failed > 0) warnings += Issue("preload_failed", "$failed tile${if (failed == 1) "" else "s"} couldn't preload; they load when shown.")
-        return Report(warnings, loads.count { it }, System.currentTimeMillis() - started)
+        return Report(warnings, loads.count { it }, System.currentTimeMillis() - started, cost(layout, screen))
     }
 
-    private fun preload(tile: Tile): (suspend () -> Unit)? {
+    /** The screen in pixels for [layout]'s orientation, and a tile's drawing area on it. */
+    private class Screen(val width: Int, val height: Int, val density: Float, val layout: Layout) {
+        // As PageView lays out: half the gap around the page and around each tile.
+        fun tileSize(tile: Tile): Pair<Int, Int> {
+            val gap = layout.theme.gap * density
+            val cellWidth = (width - gap) / layout.columns
+            val cellHeight = (height - gap) / layout.rows
+            return (cellWidth * tile.w - gap).toInt() to (cellHeight * tile.h - gap).toInt()
+        }
+
+        companion object {
+            fun of(app: PanelApp, layout: Layout): Screen {
+                val mode = app.getSystemService(android.hardware.display.DisplayManager::class.java).getDisplay(android.view.Display.DEFAULT_DISPLAY).mode
+                val long = maxOf(mode.physicalWidth, mode.physicalHeight)
+                val short = minOf(mode.physicalWidth, mode.physicalHeight)
+                val portrait = layout.orientation.key.contains("portrait")
+                return Screen(if (portrait) short else long, if (portrait) long else short, app.resources.displayMetrics.density, layout)
+            }
+        }
+    }
+
+    private fun backgroundPreload(layout: Layout, screen: Screen): (suspend () -> Unit)? {
+        val background = layout.background
+        if (background.type != "image") return null
+        val file = background.image?.let(app.backgrounds::file) ?: return null
+        val size = backgroundPixels(background.mode, maxOf(screen.width, screen.height))
+        return suspend { withContext(Dispatchers.IO) { checkNotNull(PictureCache.get(file, size, size, "")) } }
+    }
+
+    /**
+     * What drawing this layout costs: graph readings held and how many are drawn after thinning,
+     * the memory its pictures take ready to draw, and the camera streams it plays live.
+     */
+    private fun cost(layout: Layout, screen: Screen): JSONObject {
+        var held = 0
+        var drawn = 0
+        for (tile in layout.pages.flatMap { it.tiles }.filter { it.type == "graph" }) {
+            val history = app.hub.cachedHistory(entityIds(tile), tile.intProp("hours", 24).coerceIn(1, 24 * 14)) ?: continue
+            val columns = screen.tileSize(tile).first
+            history.values.forEach { line ->
+                held += line.size
+                drawn += minOf(line.size, columns * 4)
+            }
+        }
+        val pictures = layout.pages.flatMap { it.tiles }.mapNotNull { it.prop("picture")?.let(app.pictures::file) } +
+            listOfNotNull(layout.background.image?.takeIf { layout.background.type == "image" }?.let(app.backgrounds::file))
+        val cameras = layout.pages.sumOf { page -> page.tiles.count { it.type == "camera" } }
+        return JSONObject()
+            .put("graphPoints", held)
+            .put("graphPointsDrawn", drawn)
+            .put("pictureKb", PictureCache.kilobytes(pictures))
+            .put("liveStreams", minOf(cameras, app.config.cameras.value.maxLive))
+            .put("animations", layout.theme.animations)
+    }
+
+    private fun preload(tile: Tile, screen: Screen): (suspend () -> Unit)? {
         val hub = app.hub
         val ids = entityIds(tile)
         val connected = ids.isNotEmpty() && hub.historyAvailable(ids)
@@ -123,6 +188,13 @@ class LayoutCompiler(private val app: PanelApp) {
             }
             "weather" -> if (connected) suspend { hub.forecast(ids.first()) } else null
             "calendar" -> if (connected) suspend { hub.calendar(ids.joinToString(","), tile.intProp("days", 7).coerceIn(1, 60)) } else null
+            // A picture made ready at the tile's exact size, so it shows the moment the layout does.
+            "space" -> {
+                val file = tile.prop("picture")?.let(app.pictures::file) ?: return null
+                val (width, height) = screen.tileSize(tile)
+                val fit = if (file.name.endsWith(".svg")) tile.prop("fit").orEmpty() else ""
+                suspend { withContext(Dispatchers.IO) { checkNotNull(PictureCache.get(file, width, height, fit)) } }
+            }
             "camera" -> {
                 val camera = tile.prop("camera") ?: return null
                 val url = tile.prop("snapshot") ?: app.config.cameras.value.snapshotUrl(camera) ?: return null

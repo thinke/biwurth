@@ -1,5 +1,7 @@
 package io.github.thinke.biwurth.ui
 
+import io.github.thinke.biwurth.FrameStats
+
 import android.app.Activity
 import android.net.ConnectivityManager
 import androidx.activity.compose.BackHandler
@@ -24,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -105,6 +108,18 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                     }) { Text("Remove device admin") }
                     Hint("Needed before biwurth can be uninstalled. Screen off sleep stops working.")
                 }
+                }
+
+                Section("Performance") {
+                    val showFps by FrameStats.showCounter.collectAsState()
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Switch(checked = showFps, onCheckedChange = {
+                            prefs.showFps = it
+                            FrameStats.showCounter.value = it
+                        })
+                        Text("FPS counter")
+                    }
+                    Hint("Shows the frames drawn each second and how long they take, in the top-right corner.")
                 }
 
                 Section("Kiosk mode") {

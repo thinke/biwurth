@@ -23,6 +23,7 @@
       <div class="pagebar">
         <div id="pageTabs" class="pagetabs"></div>
         <button id="addPage" title="Add a page">+ Page</button>
+        <select id="addTemplate" aria-label="New page from a template"><option value="">+ Page from template…</option></select>
       </div>
       <div class="toolbar">
         <select id="addType" aria-label="Tile type"></select>
@@ -79,6 +80,7 @@
               <option value="nord">Nord</option>
               <option value="forest">Forest</option>
               <option value="light">Light</option>
+              <optgroup id="themeGroup" label="Installed themes"></optgroup>
             </select>
           </label>
           <label>Accent <input id="accent" type="color"></label>
@@ -104,6 +106,60 @@
         <label>Tile opacity <input id="tileOpacity" type="range" min="0" max="100" step="5"></label>
         <p class="muted">How solid tile backgrounds are over the background; a tile's own Opacity overrides it.
           Text stays fully visible.</p>
+        <label>Gap between cards
+          <select id="gap">
+            <option value="0">None</option><option value="4">Tight (4)</option><option value="8">Normal (8)</option>
+            <option value="12">Roomy (12)</option><option value="16">Wide (16)</option><option value="24">Extra wide (24)</option>
+          </select>
+        </label>
+        <label class="check"><input id="animations" type="checkbox"> Animations</label>
+        <p class="muted">Graphs draw in and glide to new ranges, values roll to new numbers, and a dot
+          pulses at each graph's live end. Off for a still panel.</p>
+
+        <h2>Tiles</h2>
+        <label class="check"><input id="cards" type="checkbox"> Cards behind tiles</label>
+        <p class="muted">A tile's own Background (Tile tab) overrides this.</p>
+        <div class="row">
+          <label class="grow">Corners <input id="radius" type="range" min="0" max="32" step="2"></label>
+          <label class="grow">Padding <input id="cardPadding" type="range" min="0" max="24" step="2"></label>
+        </div>
+        <div class="row">
+          <label class="grow">Border
+            <select id="borderWidth"><option value="0">None</option><option value="1">Thin</option><option value="2">Medium</option><option value="3">Thick</option></select>
+          </label>
+          <label class="grow">Numbers
+            <select id="valueWeight"><option value="light">Light</option><option value="regular">Regular</option><option value="bold">Bold</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">Shadow
+            <select id="shadow"><option value="0">None</option><option value="1">Soft</option><option value="4">Medium</option><option value="8">Strong</option></select>
+          </label>
+          <label class="grow">Titles
+            <select id="titleWeight"><option value="regular">Regular</option><option value="medium">Medium</option><option value="bold">Bold</option></select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="grow">Toggles
+            <select id="toggleStyle"><option value="fill">Light up when on</option><option value="switch">Switch</option></select>
+          </label>
+          <label class="grow">Clock
+            <select id="clockWeight"><option value="thin">Thin</option><option value="light">Light</option><option value="regular">Regular</option></select>
+          </label>
+        </div>
+        <label class="check"><input id="titleDivider" type="checkbox"> Line under tile titles</label>
+        <label class="check"><input id="graphGrid" type="checkbox"> Grid lines in graphs</label>
+
+        <h2>Themes</h2>
+        <p class="muted">A theme is a zip: colours, these settings, a background, pictures (SVG too) for
+          Empty space tiles and page templates. Picking one under Theme above puts its look on the
+          layout; save to show it.</p>
+        <div id="themeList"></div>
+        <div class="row">
+          <button type="button" id="themeImport">Import theme (.zip)…</button>
+          <button type="button" id="themeExport">Export this look…</button>
+        </div>
+        <p id="themeStatus" class="muted"></p>
 
         <h2>Background</h2>
         <label>Type
@@ -237,11 +293,26 @@
         </div>
         <label class="check"><input id="brightnessSystem" type="checkbox"> System brightness</label>
         <label>Brightness <input id="brightness" type="range" min="0" max="100"></label>
+        <label class="check"><input id="showFps" type="checkbox"> FPS counter on the panel</label>
         <button class="primary">Save</button>
         <h2>Now</h2>
         <div class="row">
           <button type="button" id="wakeBtn">Wake</button>
           <button type="button" id="sleepBtn">Sleep</button>
+        </div>
+        <h2>Benchmark</h2>
+        <p class="muted">Measures how smoothly the panel draws, on the tablet: the screen wakes and, for
+          the time set, is left alone, redrawn in full every frame, or swiped between pages. “Warm”
+          keeps the CPU and GPU busy with a speck of drawing every frame, to see if that helps.</p>
+        <div class="row">
+          <label class="grow">Test
+            <select id="benchMode"><option value="swipe">Swipe pages</option><option value="full">Redraw everything</option><option value="idle">Idle</option></select>
+          </label>
+          <label>Seconds <input id="benchSeconds" type="number" min="5" max="60" value="15"></label>
+        </div>
+        <label class="check"><input id="benchWarm" type="checkbox"> Warm</label>
+        <div class="row">
+          <button type="button" id="benchRun">Run</button>
         </div>
       </form>
       <div id="tab-backup" class="tab" hidden>
@@ -306,6 +377,7 @@
   <input id="pageFile" type="file" accept=".json,application/json" hidden>
   <input id="backupFile" type="file" accept=".json,application/json" hidden>
   <input id="bgFile" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  <input id="themeFile" type="file" accept=".zip,application/zip" hidden>
 
   <!-- A source's settings, opened from its row on the Sources tab. -->
   <div id="sourceModal" class="overlay" hidden>

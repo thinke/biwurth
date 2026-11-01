@@ -25,7 +25,16 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.github.thinke.biwurth.config.Orientation
+import io.github.thinke.biwurth.ui.FpsCounter
 import io.github.thinke.biwurth.ui.PanelScreen
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.unit.dp
 import io.github.thinke.biwurth.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
@@ -81,11 +90,25 @@ class MainActivity : ComponentActivity() {
                 val owner by Kiosk.deviceOwner.collectAsState()
                 LaunchedEffect(owner) { if (owner && panel.prefs.kiosk) Kiosk.enter(this@MainActivity) }
 
-                Box(Modifier.fillMaxSize().background(Color.Black)) {
+                // The benchmark: a tick every frame redraws everything (full) or a speck (warm).
+                val redrawAll by Benchmark.redrawAll
+                val warm by Benchmark.keepWarm
+                val tick = remember { mutableLongStateOf(0L) }
+                LaunchedEffect(redrawAll, warm) {
+                    if (redrawAll || warm) while (true) withFrameNanos { tick.longValue = it }
+                }
+                val showFps by FrameStats.showCounter.collectAsState()
+
+                Box(
+                    Modifier.fillMaxSize().background(Color.Black)
+                        .then(if (redrawAll) Modifier.drawWithContent { tick.longValue; drawContent() } else Modifier),
+                ) {
+                    if (warm) Canvas(Modifier.size(1.dp)) { drawRect(Color.Black.copy(alpha = (tick.longValue % 2) / 255f)) }
                     PanelScreen(layout, screen.page, onOpenSettings = { showSettings = true })
                     if (showSettings) SettingsScreen(activity = this@MainActivity, onClose = { showSettings = false })
                     // Some panels keep a faint glow at "backlight off"; black pixels hide it.
                     if (state != ScreenState.AWAKE) Box(Modifier.fillMaxSize().background(Color.Black))
+                    if (showFps && state == ScreenState.AWAKE) FpsCounter(Modifier.align(Alignment.TopEnd))
                 }
             }
         }
@@ -93,10 +116,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        FrameStats.attach(window)
         Kiosk.closeSystemSettings(this)
         if (panel.prefs.kiosk) Kiosk.enter(this)
         screen.userActivity()
         panel.updater.checkOnStart()
+    }
+
+    override fun onPause() {
+        FrameStats.detach(window)
+        super.onPause()
     }
 
     // Before Android 11 the hidden bars are only view flags, which Android clears when a dialog, the

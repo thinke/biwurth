@@ -1,7 +1,6 @@
 package io.github.thinke.biwurth.ui
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -32,7 +31,6 @@ import io.github.thinke.biwurth.panel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -81,10 +79,12 @@ private fun Picture(name: String, mode: String) {
     BoxWithConstraints(Modifier.fillMaxSize()) {
         // Tiles keep the picture's own size; everything else needs no more pixels than the screen.
         val maxPixels = with(LocalDensity.current) { maxOf(maxWidth.roundToPx(), maxHeight.roundToPx()) }
-        var bitmap by remember(name, mode) { mutableStateOf<Bitmap?>(null) }
-        LaunchedEffect(name, mode, maxPixels) {
-            val file = context.panel.backgrounds.file(name) ?: return@LaunchedEffect
-            bitmap = withContext(Dispatchers.IO) { decode(file, if (mode == "tile" || mode == "center") Int.MAX_VALUE else maxPixels) }
+        val file = remember(name) { context.panel.backgrounds.file(name) }
+        val size = backgroundPixels(mode, maxPixels)
+        // Usually ready: compiling the layout decoded it.
+        var bitmap by remember(name, mode, size) { mutableStateOf(file?.let { PictureCache.peek(it, size, size, "") }) }
+        LaunchedEffect(name, mode, size) {
+            if (bitmap == null && file != null) bitmap = withContext(Dispatchers.IO) { PictureCache.get(file, size, size, "") }
         }
         val image = bitmap?.asImageBitmap() ?: return@BoxWithConstraints
         when (mode) {
@@ -107,15 +107,9 @@ private fun Picture(name: String, mode: String) {
     }
 }
 
-// Decodes at the largest power-of-two reduction that still covers maxPixels: a 12-megapixel
-// photo would otherwise take ~48 MB of this 4 GB tablet's memory for an 1280-pixel screen.
-private fun decode(file: File, maxPixels: Int): Bitmap? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.path, bounds)
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= maxPixels) sample *= 2
-    return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
-}
+/** The pixels a background picture is decoded to: the screen's, or its own for tiled and centred. */
+fun backgroundPixels(mode: String, screenPixels: Int) = if (mode == "tile" || mode == "center") 1 shl 14 else screenPixels
+
 
 private fun parse(hex: String): Color? =
     hex.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)?.let { Color(0xFF000000 or it) }

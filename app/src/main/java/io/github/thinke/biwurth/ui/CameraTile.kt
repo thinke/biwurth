@@ -69,7 +69,7 @@ fun CameraTile(tile: Tile) {
     val app = LocalContext.current.panel
     val cameras by app.config.cameras.collectAsState()
     val screen by app.screen.state.collectAsState()
-    val camera = tile.prop("camera") ?: return Card { Title("Pick a camera", maxHeight) }
+    val camera = tile.prop("camera") ?: return Card { Title(tile.prop("name")?.let { "$it: pick a camera" } ?: "Pick a camera", maxHeight) }
 
     val stream = cameras.streamUrl(camera)
     val fullStream = tile.prop("fullStream")?.let(cameras::streamUrl) ?: stream
@@ -77,7 +77,7 @@ fun CameraTile(tile: Tile) {
     val fit = tile.prop("fit") == "contain"
     // A preview shows the snapshot only: no stream, live slot or status of the panel's own tile.
     if (LocalPreview.current) {
-        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black)) {
+        Box(Modifier.fillMaxSize().clip(RoundedCornerShape(LocalTileStyle.current.radius.dp)).background(Color.Black)) {
             Snapshot(snapshot, fit, refreshMs = 0L)
             if (stream == null) Hint("Set the go2rtc address on the website, or use an rtsp:// URL")
             tile.prop("name")?.let { name ->
@@ -108,7 +108,7 @@ fun CameraTile(tile: Tile) {
     var fullScreen by remember { mutableStateOf(false) }
 
     Box(
-        Modifier.fillMaxSize().clip(RoundedCornerShape(16.dp)).background(Color.Black)
+        Modifier.fillMaxSize().clip(RoundedCornerShape(LocalTileStyle.current.radius.dp)).background(Color.Black)
             .clickable(enabled = fullStream != null) { fullScreen = true },
     ) {
         if (live) Video(stream!!, fit, status = { CameraStatus.set(tile.id, label, stream, it) }) { showingVideo = it }

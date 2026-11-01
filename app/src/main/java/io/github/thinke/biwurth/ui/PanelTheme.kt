@@ -3,6 +3,7 @@ package io.github.thinke.biwurth.ui
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import io.github.thinke.biwurth.config.ThemeSettings
+import io.github.thinke.biwurth.config.ThemeStore
 
 /** Colours of the panel (not the website). Picked per layout: a preset and an optional accent. */
 data class PanelTheme(
@@ -23,10 +24,27 @@ data class PanelTheme(
             "light" to PanelTheme(Color(0xFFF2F2F0), Color.White, Color(0xFF1C1C1C), Color(0xFF6E6E6E), Color(0xFFD48A12), Color.White),
         )
 
-        fun from(settings: ThemeSettings): PanelTheme {
-            val preset = PRESETS[settings.preset] ?: PRESETS.getValue("dark")
+        /** The colours for [settings]: a built-in preset, or an installed theme's ([themes], by id). */
+        fun from(settings: ThemeSettings, themes: Map<String, ThemeStore.Theme> = emptyMap()): PanelTheme {
+            val preset = PRESETS[settings.preset] ?: themes[settings.preset]?.let(::palette) ?: PRESETS.getValue("dark")
             val accent = settings.accent?.let(::parseColor) ?: return preset
             return preset.copy(accent = accent, onAccent = if (accent.luminance() > 0.5f) Color.Black else Color.White)
+        }
+
+        // A theme package's colours over its base preset (theme.json "base" and "colors").
+        private fun palette(theme: ThemeStore.Theme): PanelTheme {
+            val base = PRESETS[theme.json.optString("base")] ?: PRESETS.getValue("dark")
+            val colors = theme.json.optJSONObject("colors") ?: return base
+            fun pick(key: String, fallback: Color) = colors.optString(key).takeIf { it.isNotEmpty() }?.let(::parseColor) ?: fallback
+            val accent = pick("accent", base.accent)
+            return PanelTheme(
+                background = pick("background", base.background),
+                card = pick("card", base.card),
+                text = pick("text", base.text),
+                muted = pick("muted", base.muted),
+                accent = accent,
+                onAccent = pick("onAccent", if (colors.has("accent")) (if (accent.luminance() > 0.5f) Color.Black else Color.White) else base.onAccent),
+            )
         }
 
         private fun parseColor(hex: String): Color? =

@@ -1,0 +1,9 @@
+{"name": "Energy at a glance", "description": "Price and power with icons, and their last 24 hours.",
+ "tiles": [
+  {"type": "space", "w": 2, "h": 2, "props": {"picture": "pictures/bolt.svg"}},
+  {"type": "entity", "w": 4, "h": 2, "props": {"name": "Electricity now", "decimals": "1"}},
+  {"type": "space", "w": 2, "h": 2, "props": {"picture": "pictures/plug.svg"}},
+  {"type": "entity", "w": 4, "h": 2, "props": {"name": "Power now", "unit": "W", "decimals": "0"}},
+  {"type": "graph", "w": 12, "h": 3, "props": {"name": "Electricity price, 24 h", "decimals": "1"}},
+  {"type": "graph", "w": 12, "h": 3, "props": {"name": "Power use, 24 h", "unit": "W", "decimals": "0"}}
+ ]}

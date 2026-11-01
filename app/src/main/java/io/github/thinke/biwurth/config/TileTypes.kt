@@ -39,6 +39,10 @@ object TileTypes {
         "Fixed text size. Default (empty): the largest that fits the tile.",
         listOf("", "small", "medium", "large", "xl"),
     )
+    private val background = Prop(
+        "background", "enum", "\"none\" draws the tile without its card, straight on the panel's background. A toggle still lights up when on.",
+        listOf("", "none"),
+    )
     private val unit = Prop("unit", "text", "Unit shown after the value. Default: the entity's unit_of_measurement.")
     private val decimals = Prop("decimals", "integer", "Decimals shown. Default: as Home Assistant reports it.")
 
@@ -51,7 +55,7 @@ object TileTypes {
         Type(
             "entity", "Entity value", "One entity's current state with its name: a temperature, a power reading, a door.",
             size = 3 to 2, minSize = 2 to 1,
-            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, unit, decimals, opacity, textSize),
+            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, unit, decimals, opacity, background, textSize),
         ),
         Type(
             "toggle", "Toggle / button",
@@ -62,7 +66,7 @@ object TileTypes {
                 Prop("entity", "entity id", "The entity tapping controls.", required = true),
                 name,
                 Prop("measurement", "entity id", "Optional numeric entity shown under the name, e.g. sensor.coffee_maker_power."),
-                unit, decimals, opacity, textSize,
+                unit, decimals, opacity, background, textSize,
             ),
             domains = listOf("light", "switch", "fan", "input_boolean", "script", "scene", "button", "input_button", "cover", "media_player", "climate", "lock"),
         ),
@@ -74,14 +78,14 @@ object TileTypes {
                 name,
                 Prop("labels", "text list", "Line labels in the same order as the entities, comma separated. Default: friendly names."),
                 Prop("hours", "integer 1-336", "Hours shown. Default 24."),
-                unit, decimals, opacity, textSize,
+                unit, decimals, opacity, background, textSize,
             ),
             domains = listOf("sensor", "input_number", "number"), multi = true,
         ),
         Type(
             "weather", "Weather", "Current conditions and a daily forecast from a weather entity. Wider tiles show more days.",
             size = 4 to 3, minSize = 3 to 2,
-            props = listOf(Prop("entity", "entity id", "A weather.* entity.", required = true), name, opacity, textSize),
+            props = listOf(Prop("entity", "entity id", "A weather.* entity.", required = true), name, opacity, background, textSize),
             domains = listOf("weather"),
         ),
         Type(
@@ -91,9 +95,19 @@ object TileTypes {
                 Prop("entity", "entity ids", "One or more calendar.* entities, comma separated.", required = true),
                 name,
                 Prop("days", "integer 1-60", "Days ahead. Default 7."),
-                opacity, textSize,
+                opacity, background, textSize,
             ),
             domains = listOf("calendar"), multi = true,
+        ),
+        Type(
+            "space", "Empty space",
+            "Keeps its cells empty: a gap in the layout, or room for a picture (JPEG, PNG, WebP or SVG, drawn sharp at any size). Works down to 1×1.",
+            size = 1 to 1, minSize = 1 to 1,
+            props = listOf(
+                Prop("picture", "picture", "Optional: a file name from PUT /api/picture. Empty leaves the space blank."),
+                Prop("fit", "enum", "How the picture fills the tile: default shows all of it, \"cover\" fills it (cropping), \"stretch\" fills it exactly.", listOf("", "cover", "stretch")),
+                opacity,
+            ),
         ),
         Type(
             "camera", "Camera", "A live camera stream (snapshot while it starts). Tap for full screen.",

@@ -16,7 +16,16 @@ backup restore, updates, settings, or clearing the log. Reading is always fine.
 
 A layout is `{columns, rows, orientation, theme, background, pages: [{id, name, tiles: [...]}]}`.
 A tile is `{id, type, x, y, w, h, props}` on whole grid cells (default grid 12 × 8, stretched
-over the whole screen). Prop values are strings.
+over the whole screen). Prop values are strings. `theme.gap` is the space between cards in dp
+(0-32, default 8) and `theme.animations` (default true) makes graphs draw in, values roll and live
+dots pulse. A tile's `background: "none"` drops its card so it sits on the panel's background.
+
+A `space` tile (Empty space) keeps its cells empty, down to 1×1: use it for deliberate gaps, or
+to reserve room before auto placement. Give it `props.picture` to show a picture there: upload
+with PUT /api/picture (body: the raw JPEG, PNG, WebP or SVG bytes) and use the file name it
+returns. SVG is drawn as vectors, sharp at any size, so icons and logos work well on 1×1. `fit`:
+default shows all of the picture, "cover" fills the tile, "stretch" fills it exactly.
+GET /api/picture/<name> returns a picture. Backups include the pictures the layout uses.
 
 - GET /api/schema: grid size, screen size in pixels, themes, backgrounds, and every tile type
   with its props, allowed values, default and minimum size, and which entity domains it takes.
@@ -39,6 +48,45 @@ over the whole screen). Prop values are strings.
 Leave out a tile's x and y and it goes in the first free spot (left to right, top to bottom) after
 the tiles that have one, in list order. Leave out w and h for its type's default size. So a page
 can be written as an ordered list of tiles with sizes, and the positions come back filled in.
+
+## Themes and page templates
+
+The layout's look is `theme`: `preset` (a built-in colour preset: dark, graphite, nord, forest,
+light, or an installed theme's id), `accent`, `font`, `textScale`, `tileOpacity`, `gap`,
+`animations`, `cards` (cards behind tiles by default; a tile's `background` "card"/"none"
+overrides) and `tiles`, how tiles are drawn:
+
+    radius, padding, borderWidth (dp)    borderColor "#rrggbb" ("" = theme's muted)
+    shadow (dp, 0 = none)                valueWeight light|regular|bold (big numbers)
+    titleWeight regular|medium|bold      titleColor muted|text      titleDivider true|false
+    toggleStyle fill (lights up) | switch (a switch, card unchanged)
+    clockWeight thin|light|regular       graphGrid, graphFill true|false   graphLineWidth (dp)
+    graphColors ["#rrggbb", …] (line colours; empty = accent, then built-in ones)
+
+Built-in themes: aurora (dark, glowing gradient, line icons) and ant-design (Ant Design's light
+look: white bordered cards, title lines, switches, grid lines, AntV chart colours).
+
+A theme package is a zip:
+
+    theme.json          {"id": "lowercase-id", "name", "description", "base": a built-in preset,
+                         "colors": {background, card, text, muted, accent, onAccent},
+                         "font", "textScale", "tileOpacity", "gap", "animations", "cards",
+                         "tiles": {…as above}, "background": {…, "image": "backgrounds/x.jpg"}}
+    pictures/…          SVG, PNG, JPEG or WebP for Empty space tiles
+    backgrounds/…       background pictures
+    templates/<n>.json  page templates: {"name", "description", "tiles": [...]}; a tile's
+                        "picture": "pictures/x.svg" uses the theme's own picture
+
+- GET /api/themes: installed themes with their colours, settings, pictures and templates.
+- POST /api/themes (body: the zip): installs or replaces one. Its pictures become
+  "theme-<id>-<file>" for tiles' `picture`.
+- POST /api/themes/<id>/apply: puts its look (and background) on the layout and saves.
+- GET /api/themes/<id>.zip: its package. GET /api/themes/current.zip?id=…&name=…: the current
+  look, pictures and pages (as templates) as a new theme, a good start for making one.
+- DELETE /api/themes/<id> (not the built-in ones).
+- GET /api/templates: page templates, the app's (builtin/…) and themes' (<theme>/…).
+  GET /api/templates/<id> for one. POST /api/templates/page {"template": id, "name"?} adds a page
+  from it; its entities are usually empty, so fill them in (PATCH the tiles) and check.
 
 Small changes without resending the whole layout (each saves, and undo goes back; <page> is a
 page id or its number from 0):
@@ -70,3 +118,9 @@ page id or its number from 0):
 - GET /api/logs: the last 500 log lines (plain text); GET /api/logs/all for all of them.
 - GET /api/cameras: go2rtc stream names; GET /api/cameras/status: how each camera tile is doing.
 - GET /api/update: installed and latest version.
+- POST /api/benchmark?seconds=5-60&mode=idle|full|swipe&warm=0|1: measures drawing on the tablet
+  (wakes the screen): idle leaves it, full redraws everything every frame, swipe goes through the
+  pages; warm adds a speck of drawing every frame. Returns fps, frameMs {p50, p90, p99, max},
+  overBudgetPercent (frames over the display's frame time), cpuPercentOfCore. Use it to compare a
+  layout or theme change. The panel must be on screen.
+- PUT /api/screen {"showFps": true}: an FPS counter on the panel.

@@ -1,0 +1,7 @@
+{"name": "Cameras", "description": "Four cameras in a grid. Mind the live stream limit in the Cameras tab.",
+ "tiles": [
+  {"type": "camera", "w": 6, "h": 4, "props": {"name": "Camera 1"}},
+  {"type": "camera", "w": 6, "h": 4, "props": {"name": "Camera 2"}},
+  {"type": "camera", "w": 6, "h": 4, "props": {"name": "Camera 3"}},
+  {"type": "camera", "w": 6, "h": 4, "props": {"name": "Camera 4"}}
+ ]}

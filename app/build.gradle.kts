@@ -71,4 +71,8 @@ dependencies {
     implementation(libs.media3.ui)
     // QR code for setting up a new tablet (Provisioning)
     implementation(libs.zxing.core)
+    // SVG pictures on Empty space tiles, drawn as vectors at any size
+    implementation(libs.androidsvg)
+
+    testImplementation(libs.junit)
 }
