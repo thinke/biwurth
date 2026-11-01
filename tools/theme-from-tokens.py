@@ -21,7 +21,8 @@ instead (POST /api/themes).
       "chartColors": ["#...", ...], "chartGrid": true, "chartFill": true, "chartLineWidth": 2,
       "listLines": true, "font": "system" | "inter", "animations": true,
       "toggle": "switch" | "fill" | "icon", "tileLayout": "stacked" | "compact",
-      "icons": "none" | "badge" | "bubble", "buttonShape": "card" | "pill"
+      "icons": "none" | "badge" | "bubble", "buttonShape": "card" | "pill",
+      "thermostat": "dial" | "numbers", "slider": "bar" | "fill"
     }
 """
 import json
@@ -62,6 +63,7 @@ def theme(t):
             "listDividers": t.get("listLines", False), "calendarColors": True,
             "tileLayout": t.get("tileLayout", "stacked"), "icons": t.get("icons", "none"),
             "buttonShape": t.get("buttonShape", "card"),
+            "thermostatStyle": t.get("thermostat", "numbers"), "sliderStyle": t.get("slider", "bar"),
         },
         "background": {"type": "color", "color": t["page"]},
     }

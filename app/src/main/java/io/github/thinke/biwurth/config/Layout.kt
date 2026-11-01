@@ -204,6 +204,10 @@ data class TileStyle(
     val icons: String = "none",
     /** Value and toggle tiles: "card" (the radius above) or "pill" (fully rounded ends). */
     val buttonShape: String = "card",
+    /** Thermostats: "dial" (an arc from minimum to maximum) or "numbers" (a big target with − and +). */
+    val thermostatStyle: String = "dial",
+    /** Sliders: "bar" (a track under the name) or "fill" (the whole tile fills to the level). */
+    val sliderStyle: String = "bar",
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("radius", radius).put("padding", padding)
@@ -214,6 +218,7 @@ data class TileStyle(
         .put("toggleStyle", toggleStyle).put("clockWeight", clockWeight).put("graphGrid", graphGrid)
         .put("listDividers", listDividers).put("calendarColors", calendarColors)
         .put("tileLayout", tileLayout).put("icons", icons).put("buttonShape", buttonShape)
+        .put("thermostatStyle", thermostatStyle).put("sliderStyle", sliderStyle)
 
     companion object {
         private val HEX = Regex("#[0-9a-fA-F]{6}")
@@ -243,6 +248,8 @@ data class TileStyle(
                 tileLayout = json.optString("tileLayout").takeIf { it in setOf("stacked", "compact") } ?: "stacked",
                 icons = json.optString("icons").takeIf { it in setOf("none", "badge", "bubble") } ?: "none",
                 buttonShape = json.optString("buttonShape").takeIf { it in setOf("card", "pill") } ?: "card",
+                thermostatStyle = json.optString("thermostatStyle").takeIf { it in setOf("dial", "numbers") } ?: "dial",
+                sliderStyle = json.optString("sliderStyle").takeIf { it in setOf("bar", "fill") } ?: "bar",
             )
         }
     }

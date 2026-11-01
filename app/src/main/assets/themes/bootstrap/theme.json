@@ -41,7 +41,12 @@
       "#0dcaf0"
     ],
     "listDividers": true,
-    "calendarColors": true
+    "calendarColors": true,
+    "tileLayout": "stacked",
+    "icons": "none",
+    "buttonShape": "card",
+    "thermostatStyle": "numbers",
+    "sliderStyle": "bar"
   },
   "background": {
     "type": "color",

@@ -65,12 +65,19 @@ overrides) and `tiles`, how tiles are drawn:
     tileLayout stacked (name over a big number) | compact (icon beside name and value)
     icons none | badge (tinted circle, Mushroom) | bubble (plain circle, Bubble Card)
     buttonShape card | pill (value and toggle tiles fully rounded)
+    thermostatStyle dial (an arc min..max) | numbers (big target with − and +)
+    sliderStyle bar (a track under the name) | fill (the whole tile fills to the level)
     toggleStyle also icon (only the icon lights up when on)
     listDividers (lines between calendar events)
     calendarColors (a tile of several calendars marks each event in its calendar's graphColors colour)
 
 Value and toggle tiles take `props.icon`: one of bed, bolt, bulb, calendar, coffee, computer, drop, fan, gauge, home, moon, plug, power, snowflake, sun, thermometer, tv, or "none"; by
 default the compact layout picks one from the entity (temperature: thermometer, power: bolt, …).
+
+Thermostat tiles take a climate entity: target (− and + send set_temperature), current
+temperature, heating or cooling, hvac modes as chips. Slider tiles take a light (brightness),
+cover (position), fan (speed), media_player (volume), number or input_number: drag to set, tap
+toggles a light or fan.
 
 Calendar tiles have a `view`: "" (a list of what's ahead, `days` long), "week" (a column per
 day from today) or "month" (the month as a grid of weeks; give it 6×5 cells or more). In all,

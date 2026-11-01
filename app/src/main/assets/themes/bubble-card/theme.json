@@ -44,7 +44,9 @@
     "calendarColors": true,
     "tileLayout": "compact",
     "icons": "bubble",
-    "buttonShape": "pill"
+    "buttonShape": "pill",
+    "thermostatStyle": "dial",
+    "sliderStyle": "fill"
   },
   "background": {
     "type": "color",

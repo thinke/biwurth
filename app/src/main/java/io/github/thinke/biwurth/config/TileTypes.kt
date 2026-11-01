@@ -110,6 +110,20 @@ object TileTypes {
             domains = listOf("calendar"), multi = true,
         ),
         Type(
+            "thermostat", "Thermostat",
+            "A climate entity: current and target temperature, heating or cooling, − and + for the target, and its modes. The theme draws it as a dial or as numbers.",
+            size = 3 to 3, minSize = 2 to 2,
+            props = listOf(Prop("entity", "entity id", "A climate.* entity.", required = true), name, opacity, background, textSize),
+            domains = listOf("climate"),
+        ),
+        Type(
+            "slider", "Slider",
+            "Drag to set a light's brightness, a cover's position, a fan's speed, a media player's volume or a number. A tap toggles a light or fan.",
+            size = 3 to 1, minSize = 2 to 1,
+            props = listOf(Prop("entity", "entity id", "A light, cover, fan, media_player, number or input_number.", required = true), name, icon, opacity, background, textSize),
+            domains = listOf("light", "cover", "fan", "media_player", "number", "input_number"),
+        ),
+        Type(
             "space", "Empty space",
             "Keeps its cells empty: a gap in the layout, or room for a picture (JPEG, PNG, WebP or SVG, drawn sharp at any size). Works down to 1×1.",
             size = 1 to 1, minSize = 1 to 1,
@@ -150,7 +164,9 @@ object TileTypes {
         val domain = domainOf(entityId)
         // Own entities (src.<source>.<field>) behave like sensors.
         val sensorLike = domain == "src" || domain in BY_KEY.getValue("graph").domains
+        if (domain == "climate") return listOf("thermostat", "entity")
         return buildList {
+            if (domain in BY_KEY.getValue("slider").domains) add("slider")
             if (domain in BY_KEY.getValue("toggle").domains) add("toggle")
             if (domain == "weather") add("weather")
             if (domain == "calendar") add("calendar")

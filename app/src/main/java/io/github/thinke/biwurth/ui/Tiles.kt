@@ -112,6 +112,8 @@ private fun TileContent(tile: Tile, ha: DataHub) {
         "calendar" -> Card { CalendarTile(tile, ha) }
         "camera" -> CameraTile(tile)
         "space" -> SpaceTile(tile)
+        "thermostat" -> Card { ThermostatTile(tile, ha) }
+        "slider" -> Card(button = true) { SliderTile(tile, ha) }
     }
 }
 
@@ -122,7 +124,7 @@ private fun TileContent(tile: Tile, ha: DataHub) {
 // Reading .value once as the starting state, so a tile doesn't flash empty before the first collect.
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
-private fun DataHub.entity(id: String?): HomeAssistant.Entity? = key(id) {
+internal fun DataHub.entity(id: String?): HomeAssistant.Entity? = key(id) {
     val flow = remember(this) { entities.map { all -> id?.let { all[it] } }.distinctUntilChanged() }
     flow.collectAsState(initial = id?.let { entities.value[it] }).value
 }
@@ -180,7 +182,7 @@ private val LocalTileBackground = staticCompositionLocalOf { true }
 val LocalTileStyle = staticCompositionLocalOf { TileStyle() }
 
 @Composable
-private fun valueWeight() = when (LocalTileStyle.current.valueWeight) {
+internal fun valueWeight() = when (LocalTileStyle.current.valueWeight) {
     "regular" -> FontWeight.Normal
     "bold" -> FontWeight.SemiBold
     else -> FontWeight.Light
@@ -219,7 +221,7 @@ private val DETAIL_SIZES = mapOf("small" to 12.dp, "medium" to 14.dp, "large" to
  * tile, so the text scale may shrink it but never grows it past the tile's edges.
  */
 @Composable
-private fun main(auto: Dp, fixedFactor: Float = 1f): TextUnit {
+internal fun main(auto: Dp, fixedFactor: Float = 1f): TextUnit {
     MAIN_SIZES[LocalTileTextSize.current]?.let { return (it * fixedFactor).sp(1f) }
     return fitted(auto)
 }
@@ -928,7 +930,7 @@ private fun animatedState(tile: Tile, entity: HomeAssistant.Entity?): String {
 private const val VALUE_ROLL_MS = 800
 
 // An empty tile keeps its name (a template's "Temperature, 24 h") and says what it still needs.
-private fun pickHint(tile: Tile, hint: String) = tile.prop("name")?.let { "$it: ${hint.replaceFirstChar(Char::lowercase)}" } ?: hint
+internal fun pickHint(tile: Tile, hint: String) = tile.prop("name")?.let { "$it: ${hint.replaceFirstChar(Char::lowercase)}" } ?: hint
 
 private fun formatState(tile: Tile, entity: HomeAssistant.Entity?): String {
     if (entity == null || entity.state == "unavailable" || entity.state == "unknown") return "–"

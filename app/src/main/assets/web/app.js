@@ -15,6 +15,11 @@ const TYPES = {
   weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'background', 'textSize'], domains: ['weather'] },
   calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'view', 'days', 'opacity', 'background', 'textSize'], domains: ['calendar'], multi: 'calendar' },
   camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
+  thermostat: { label: 'Thermostat', size: [3, 3], fields: ['entity', 'name', 'opacity', 'background', 'textSize'], domains: ['climate'] },
+  slider: {
+    label: 'Slider (dimmer, cover, volume)', size: [3, 1], fields: ['entity', 'name', 'icon', 'opacity', 'background', 'textSize'],
+    domains: ['light', 'cover', 'fan', 'media_player', 'number', 'input_number'],
+  },
   space: {
     label: 'Empty space', size: [1, 1], fields: ['picture', 'fit', 'opacity'],
     // The same props as others, with this tile's own meaning.
@@ -720,6 +725,8 @@ function renderLayoutForm() {
   $('#tileLayout').value = tiles.tileLayout || 'stacked';
   $('#iconStyle').value = tiles.icons || 'none';
   $('#buttonShape').value = tiles.buttonShape || 'card';
+  $('#thermostatStyle').value = tiles.thermostatStyle || 'dial';
+  $('#sliderStyle').value = tiles.sliderStyle || 'bar';
   renderBackgroundForm();
   $('#accentDefault').checked = !layout.theme.accent;
   $('#accent').value = layout.theme.accent || THEME_ACCENTS[layout.theme.preset] || '#e0a030';
@@ -792,12 +799,14 @@ function updateTheme() {
       tileLayout: $('#tileLayout').value,
       icons: $('#iconStyle').value,
       buttonShape: $('#buttonShape').value,
+      thermostatStyle: $('#thermostatStyle').value,
+      sliderStyle: $('#sliderStyle').value,
     },
   };
   setDirty(true);
   renderLayoutForm();
 }
-for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid', '#listDividers', '#calendarColors', '#tileLayout', '#iconStyle', '#buttonShape']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
+for (const id of ['#cards', '#borderWidth', '#valueWeight', '#shadow', '#titleWeight', '#toggleStyle', '#clockWeight', '#titleDivider', '#graphGrid', '#listDividers', '#calendarColors', '#tileLayout', '#iconStyle', '#buttonShape', '#thermostatStyle', '#sliderStyle']) $(id).addEventListener('change', () => { updateTheme(); renderBoard(); });
 for (const id of ['#radius', '#cardPadding']) $(id).addEventListener('change', updateTheme);
 
 // Picking an installed theme puts its whole look on the layout; a built-in preset only its colours.

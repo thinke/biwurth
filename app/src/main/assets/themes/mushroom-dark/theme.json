@@ -44,7 +44,9 @@
     "calendarColors": true,
     "tileLayout": "compact",
     "icons": "badge",
-    "buttonShape": "card"
+    "buttonShape": "card",
+    "thermostatStyle": "dial",
+    "sliderStyle": "bar"
   },
   "background": {
     "type": "color",

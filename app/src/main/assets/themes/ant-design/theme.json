@@ -40,7 +40,9 @@
       "#7863ff",
       "#60c42d"
     ],
-    "listDividers": true
+    "listDividers": true,
+    "thermostatStyle": "numbers",
+    "sliderStyle": "bar"
   },
   "background": {
     "type": "color",

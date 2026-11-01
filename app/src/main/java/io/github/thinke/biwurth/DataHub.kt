@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * Everything tiles can show, from every source, under one set of ids:
@@ -103,6 +104,18 @@ class DataHub(private val sources: Sources) {
     // (owner or null for own fields) → [(id as tiles know it, id at the owner)]
     private fun groupByOwner(ids: List<String>): Map<HomeAssistant?, List<Pair<String, String>>> =
         ids.groupBy({ owner(it)?.first }, { id -> id to (owner(id)?.second ?: id) })
+
+    /**
+     * Calls a Home Assistant action on [id] (its own Home Assistant, whichever owns it), e.g.
+     * light.turn_on with brightness_pct. Own sources' fields have no actions.
+     */
+    fun call(id: String, domain: String, service: String, data: org.json.JSONObject? = null) {
+        val (ha, local) = owner(id) ?: return
+        scope.launch {
+            runCatching { ha.callService(domain, service, local, data) }
+                .onFailure { EventLog.e("ha", "$domain.$service on $id failed: ${it.message ?: it.javaClass.simpleName}") }
+        }
+    }
 
     fun press(id: String) {
         val owner = owner(id)
