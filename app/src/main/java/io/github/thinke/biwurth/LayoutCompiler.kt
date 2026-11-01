@@ -189,6 +189,12 @@ class LayoutCompiler(private val app: PanelApp) {
                 null
             }
             "weather" -> if (connected) suspend { hub.forecast(ids.first()) } else null
+            // A trend shows its history, so it's ready like a graph's.
+            "entity" -> if (tile.prop("style") == "trend" && connected) {
+                suspend { hub.history(ids, tile.intProp("hours", 24).coerceIn(1, 24 * 14)) }
+            } else {
+                null
+            }
             "calendar" -> if (connected) {
                 val (from, days) = io.github.thinke.biwurth.ui.calendarRange(tile.prop("view") ?: "list", tile.intProp("days", 7).coerceIn(1, 60))
                 suspend { hub.calendar(ids.joinToString(","), days, from) }
@@ -221,7 +227,7 @@ class LayoutCompiler(private val app: PanelApp) {
     private fun label(tile: Tile) = "“${tile.prop("name") ?: tile.prop("entity")?.substringBefore(',') ?: tile.type}”"
 
     private companion object {
-        val ENTITY_TYPES = setOf("entity", "toggle", "graph", "weather", "calendar")
+        val ENTITY_TYPES = setOf("entity", "toggle", "graph", "weather", "calendar", "thermostat", "slider", "chips")
         const val PRELOAD_TIMEOUT_MS = 15_000L
     }
 }

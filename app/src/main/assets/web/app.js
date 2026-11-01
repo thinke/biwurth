@@ -2,19 +2,31 @@
 
 // Tile types: label, default size in cells, settings, and which entity domains suit them.
 const TYPES = {
-  clock: { label: 'Clock', size: [4, 2], fields: ['date', 'opacity', 'textSize'] },
-  entity: { label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'icon', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'] },
+  clock: {
+    label: 'Clock', size: [4, 2], fields: ['style', 'date', 'opacity', 'textSize'],
+    overrides: { style: { label: 'Look', options: [['', 'Digital'], ['analog', 'Analog']] } },
+  },
+  entity: {
+    label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'style', 'min', 'max', 'betterWhen', 'icon', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    overrides: { style: { label: 'Look', options: [['', 'Number'], ['trend', 'Trend (change and sparkline)'], ['gauge', 'Gauge'], ['progress', 'Progress bar']] } },
+  },
   toggle: {
     label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'icon', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
-    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'hours', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'style', 'hours', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    overrides: { style: { label: 'Look', options: [['', 'Line'], ['bars', 'Bars (per hour)'], ['sparkline', 'Sparkline']] } },
     domains: ['sensor', 'input_number', 'number'], multi: 'line', labels: true,
   },
   weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'background', 'border', 'textSize'], domains: ['weather'] },
   calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'view', 'days', 'opacity', 'background', 'border', 'textSize'], domains: ['calendar'], multi: 'calendar' },
   camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
+  chips: { label: 'Chips (status row)', size: [12, 1], fields: ['entity', 'decimals'], multi: 'chip' },
+  heading: {
+    label: 'Heading', size: [12, 1], fields: ['name', 'subtitle', 'style'],
+    overrides: { style: { label: 'Look', options: [['', 'Big title'], ['separator', 'Title and a line']] }, name: { label: 'Title', placeholder: 'Living room' } },
+  },
   thermostat: {
     label: 'Thermostat', size: [3, 3], fields: ['entity', 'name', 'style', 'opacity', 'background', 'border', 'textSize'], domains: ['climate'],
     overrides: { style: { label: 'Look', options: [['', 'As the layout'], ['dial', 'Dial'], ['numbers', 'Numbers'], ['ring', 'Ring (glows)'], ['bar', 'Bar'], ['pill', 'Pill (one row)'], ['thermometer', 'Thermometer']] } },
@@ -52,6 +64,11 @@ const FIELDS = {
   },
   fit: { label: 'Picture', options: [['', 'Fill the tile'], ['contain', 'Show all of it']] },
   view: { label: 'View', options: [['', 'List of what\'s ahead'], ['week', 'Week: a column per day'], ['month', 'Month grid (6×5 or bigger)']] },
+  min: { label: 'Min (gauge, bar)', type: 'number', placeholder: '0' },
+  max: { label: 'Max (gauge, bar)', type: 'number', placeholder: '100' },
+  betterWhen: { label: 'Trend: better when', options: [['', 'Rising'], ['down', 'Falling'], ['none', 'Neither (no colour)']] },
+  subtitle: { label: 'Subtitle', placeholder: 'Optional' },
+  style: { label: 'Look', options: [['', 'Default']] },
   border: { label: 'Border', options: [['', 'As the layout'], ['none', 'None']] },
   icon: { label: 'Icon (compact layout)', options: [['', 'For the entity'], ['none', 'None'], ...[["bed", "bed"], ["bolt", "bolt"], ["bulb", "bulb"], ["calendar", "calendar"], ["coffee", "coffee"], ["computer", "computer"], ["drop", "drop"], ["fan", "fan"], ["gauge", "gauge"], ["home", "home"], ["moon", "moon"], ["plug", "plug"], ["power", "power"], ["snowflake", "snowflake"], ["sun", "sun"], ["thermometer", "thermometer"], ["tv", "tv"]]] },
   background: { label: 'Background', options: [['', 'As the layout (Tiles)'], ['card', 'Card'], ['none', 'None (on the panel background)']] },
@@ -566,7 +583,7 @@ function multiEntityEditor(tile, type) {
   const wrap = document.createElement('div');
   const title = document.createElement('div');
   title.className = 'muted';
-  title.textContent = type.multi === 'line' ? 'Lines' : 'Calendars';
+  title.textContent = { line: 'Lines', chip: 'Chips' }[type.multi] || 'Calendars';
   wrap.append(title);
   fillEntityList(type.domains);
 
@@ -585,7 +602,7 @@ function multiEntityEditor(tile, type) {
 
   const add = document.createElement('button');
   add.type = 'button';
-  add.textContent = type.multi === 'line' ? '+ Add line' : '+ Add calendar';
+  add.textContent = { line: '+ Add line', chip: '+ Add chip' }[type.multi] || '+ Add calendar';
 
   const row = (id, label) => {
     const line = document.createElement('div');

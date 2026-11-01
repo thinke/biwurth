@@ -115,6 +115,8 @@ private fun TileContent(tile: Tile, ha: DataHub) {
         "space" -> SpaceTile(tile)
         "thermostat" -> Card { ThermostatTile(tile, ha) }
         "slider" -> Card(button = true) { SliderTile(tile, ha) }
+        "chips" -> BoxWithConstraints(Modifier.fillMaxSize()) { ChipsTile(tile, ha) }
+        "heading" -> BoxWithConstraints(Modifier.fillMaxSize()) { HeadingTile(tile) }
     }
 }
 
@@ -287,6 +289,7 @@ private fun ClockTile(tile: Tile) {
         }
     }
     BoxWithConstraints(Modifier.fillMaxSize().clip(RoundedCornerShape(LocalTileStyle.current.radius.dp)), contentAlignment = Alignment.Center) {
+        if (tile.prop("style") == "analog") return@BoxWithConstraints AnalogClock(now, tile.prop("date") != "off", now.format(DATE))
         // Fit "HH:mm" in the width as well as the height.
         val size = minOf(maxHeight * 0.6f, maxWidth * 0.3f)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -309,6 +312,7 @@ private fun BoxWithConstraintsScope.EntityTile(tile: Tile, ha: DataHub) {
     val maxWidth = maxWidth
     val maxHeight = maxHeight
     val entity = ha.entity(tile.prop("entity"))
+    tile.prop("style")?.takeIf { it in setOf("trend", "gauge", "progress") }?.let { return ValueLook(it, tile, ha, entity) }
     if (LocalTileStyle.current.tileLayout == "compact") {
         val name = tile.prop("name") ?: entity?.name ?: tile.prop("entity") ?: "Entity"
         // A reading's icon is always lit, as in Mushroom: it says what the number is. Its colour is
@@ -656,7 +660,10 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
         // At most a few points per pixel column (spikes kept): a busy sensor's thousands of readings
         // would otherwise go into every path. Redone when the data or the tile's size changes.
         val prepared = remember(drawn, start, columns) { drawn.map { it.points.thinned(start, now, columns) } }
-        val fill = drawn.size == 1 && style.graphFill
+        // The look: "line" (steps), "bars" (an average per hour, or per slice of a longer span) or
+        // "sparkline" (a filled line without legend or scale).
+        val look = tile.prop("style") ?: "line"
+        val fill = (drawn.size == 1 && style.graphFill) || look == "sparkline"
         val gridColor = borderColor()
         Box(Modifier.weight(1f).fillMaxWidth().padding(top = 8.dp)) {
             // The lines: paths built once per data, size or scale; drawing in only clips them.
@@ -665,7 +672,8 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                     val low = shownMin.value
                     val range = (shownMax.value - low).takeIf { it > 0f } ?: 1f
                     val map = GraphScale(start, now, low, range, size.width, size.height)
-                    val paths = prepared.map { stepPath(it, map) }
+                    // A sparkline runs straight from reading to reading; graphs step, as sensors hold values.
+                    val paths = prepared.map { if (look == "sparkline") linePath(it, map) else stepPath(it, map) }
                     val fills = if (fill) {
                         paths.map { line ->
                             Path().apply {
@@ -678,7 +686,12 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                     } else {
                         emptyList()
                     }
-                    val stroke = Stroke(width = style.graphLineWidth.dp.toPx())
+                    val stroke = Stroke(width = (style.graphLineWidth + if (look == "sparkline") 1 else 0).dp.toPx())
+                    // Bars: an average per slice, from zero (or the lowest value, if below zero) up.
+                    val buckets = if (hours <= 48) hours else 24
+                    val bars = if (look == "bars") prepared.map { it.bucketAverages(start, now, buckets) } else emptyList()
+                    val barLow = minOf(0f, minTarget)
+                    val barRange = (maxTarget - barLow).takeIf { it > 0f } ?: 1f
                     val grid = style.graphGrid
                     val gridColor = gridColor
                     val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
@@ -689,6 +702,21 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                                 drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx(), pathEffect = dash)
                             }
                         }
+                        if (look == "bars") {
+                            val slot = size.width / buckets
+                            val each = slot * 0.8f / bars.size.coerceAtLeast(1)
+                            bars.forEachIndexed { line, values ->
+                                values.forEachIndexed { b, v ->
+                                    if (v.isNaN()) return@forEachIndexed
+                                    val h = size.height * ((v - barLow) / barRange) * reveal.value
+                                    drawRoundRect(
+                                        drawn[line].color, Offset(b * slot + slot * 0.1f + each * line, size.height - h), androidx.compose.ui.geometry.Size(each * 0.9f, h),
+                                        androidx.compose.ui.geometry.CornerRadius(each * 0.25f),
+                                    )
+                                }
+                            }
+                            return@onDrawBehind
+                        }
                         clipRect(right = size.width * reveal.value) {
                             fills.forEachIndexed { i, path -> drawPath(path, drawn[i].color.copy(alpha = 0.15f)) }
                             paths.forEachIndexed { i, path -> drawPath(path, drawn[i].color, style = stroke) }
@@ -698,7 +726,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
             )
             // The live end of each line, on its own layer: the pulse redraws a few circles, not the lines.
             Canvas(Modifier.fillMaxSize()) {
-                if (reveal.value < 1f) return@Canvas
+                if (reveal.value < 1f || look == "bars") return@Canvas
                 val low = shownMin.value
                 val map = GraphScale(start, now, low, (shownMax.value - low).takeIf { it > 0f } ?: 1f, size.width, size.height)
                 val t = pulse.floatValue.takeIf { it >= 0f }
@@ -709,7 +737,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                 }
             }
         }
-        if (lines.size > 1) {
+        if (lines.size > 1 && tile.prop("style") != "sparkline") {
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 lines.forEach { line ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
@@ -723,7 +751,7 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                 }
             }
         }
-        Row(Modifier.fillMaxWidth()) {
+        if (tile.prop("style") != "sparkline") Row(Modifier.fillMaxWidth()) {
             Text("min ${formatNumber(min, tile)}", color = theme.muted, fontSize = detail(12.dp), modifier = Modifier.weight(1f))
             Text("max ${formatNumber(max, tile)}  ·  ${hours} h", color = theme.muted, fontSize = detail(12.dp))
         }
@@ -744,6 +772,10 @@ private class GraphScale(val start: Long, val end: Long, val low: Float, val ran
     fun y(value: Float) = height * (1f - (value - low) / range)
 }
 
+private fun linePath(points: List<Pair<Long, Float>>, map: GraphScale): Path = Path().apply {
+    points.forEachIndexed { i, (time, value) -> if (i == 0) moveTo(map.x(time), map.y(value)) else lineTo(map.x(time), map.y(value)) }
+}
+
 // Sensors hold their value until the next change, so steps rather than slopes.
 private fun stepPath(points: List<Pair<Long, Float>>, map: GraphScale): Path = Path().apply {
     var lastY = 0f
@@ -756,6 +788,32 @@ private fun stepPath(points: List<Pair<Long, Float>>, map: GraphScale): Path = P
         }
         lastY = y
     }
+}
+
+/**
+ * The time-weighted average of a step line in each of [n] equal slices from [start] to [end]
+ * (a reading holds until the next), NaN where a slice has none.
+ */
+internal fun List<Pair<Long, Float>>.bucketAverages(start: Long, end: Long, n: Int): FloatArray {
+    val out = FloatArray(n) { Float.NaN }
+    if (isEmpty()) return out
+    val span = (end - start).toDouble() / n
+    for (b in 0 until n) {
+        val from = start + (b * span).toLong()
+        val to = start + ((b + 1) * span).toLong()
+        var sum = 0.0
+        var held = 0L
+        for (i in indices) {
+            val t0 = maxOf(this[i].first, from)
+            val t1 = minOf(if (i + 1 < size) this[i + 1].first else end, to)
+            if (t1 > t0) {
+                sum += this[i].second.toDouble() * (t1 - t0)
+                held += t1 - t0
+            }
+        }
+        if (held > 0) out[b] = (sum / held).toFloat()
+    }
+    return out
 }
 
 /**
@@ -919,7 +977,7 @@ private fun whenLabel(event: HomeAssistant.CalendarEvent): String {
  * many decimals as the entity reports throughout (or the tile's Decimals).
  */
 @Composable
-private fun animatedState(tile: Tile, entity: HomeAssistant.Entity?): String {
+internal fun animatedState(tile: Tile, entity: HomeAssistant.Entity?): String {
     val target = entity?.state?.toFloatOrNull()
     val shown = animateFloatAsState(
         target ?: 0f,

@@ -81,6 +81,13 @@ current temperature, heating or cooling, hvac modes as chips. Slider tiles take 
 cover (position), fan (speed), media_player (volume), number or input_number: drag to set, tap
 toggles a light or fan.
 
+Looks by `props.style`: value tiles "" (number), "trend" (change over `hours` with ▲/▼, green
+or red by `betterWhen` up/down/none, and a sparkline), "gauge" and "progress" (between `min` and
+`max`, default 0-100); graphs "" (steps), "bars" (average per hour), "sparkline"; clocks ""
+(digital) or "analog". Two more tiles: "chips" (a status row: `entity` comma separated, icon and
+value each, lights and switches toggle on a tap) and "heading" (`name` as a title with optional
+`subtitle`; "style": "separator" draws a line beside it), both on the panel's background.
+
 Calendar tiles have a `view`: "" (a list of what's ahead, `days` long), "week" (a column per
 day from today) or "month" (the month as a grid of weeks; give it 6×5 cells or more). In all,
 several calendars are told apart by colour. Calendar tiles show today's events with the date in the accent colour and later ones muted; text

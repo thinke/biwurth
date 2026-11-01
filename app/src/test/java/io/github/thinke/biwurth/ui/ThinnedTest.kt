@@ -41,3 +41,22 @@ class ThinnedTest {
         assertEquals(-50f, thinned.minOf { it.second })
     }
 }
+
+class BucketAveragesTest {
+    @Test
+    fun aReadingHoldsUntilTheNext() {
+        // 10 for the first quarter of the span, then 30: the first half averages 20.
+        val points = listOf(0L to 10f, 250L to 30f)
+        val halves = points.bucketAverages(0L, 1000L, 2)
+        assertEquals(20f, halves[0], 0.001f)
+        assertEquals(30f, halves[1], 0.001f)
+    }
+
+    @Test
+    fun slicesBeforeTheFirstReadingAreEmpty() {
+        val values = listOf(600L to 5f).bucketAverages(0L, 1000L, 4)
+        assertTrue(values[0].isNaN())
+        assertTrue(values[1].isNaN())
+        assertEquals(5f, values[3], 0.001f)
+    }
+}

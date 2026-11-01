@@ -59,12 +59,23 @@ object TileTypes {
         Type(
             "clock", "Clock", "The time, large, with the date under it.",
             size = 4 to 2, minSize = 2 to 1,
-            props = listOf(Prop("date", "enum", "\"off\" hides the date.", listOf("", "off")), opacity, textSize),
+            props = listOf(
+                Prop("style", "enum", "\"\" digital, \"analog\" a clock face.", listOf("", "analog")),
+                Prop("date", "enum", "\"off\" hides the date.", listOf("", "off")), opacity, textSize,
+            ),
         ),
         Type(
             "entity", "Entity value", "One entity's current state with its name: a temperature, a power reading, a door.",
             size = 3 to 2, minSize = 2 to 1,
-            props = listOf(Prop("entity", "entity id", "The entity shown.", required = true), name, icon, unit, decimals, opacity, background, border, textSize),
+            props = listOf(
+                Prop("entity", "entity id", "The entity shown.", required = true), name,
+                Prop("style", "enum", "\"\" the number; \"trend\" with its change and a sparkline; \"gauge\" an arc min..max; \"progress\" a bar min..max.", listOf("", "trend", "gauge", "progress")),
+                Prop("min", "number", "Gauge and progress: the low end. Default 0."),
+                Prop("max", "number", "Gauge and progress: the high end. Default 100."),
+                Prop("hours", "integer 1-336", "Trend: the hours compared. Default 24."),
+                Prop("betterWhen", "enum", "Trend: \"up\" (default) colours a rise green, \"down\" a fall, \"none\" neither.", listOf("", "up", "down", "none")),
+                icon, unit, decimals, opacity, background, border, textSize,
+            ),
         ),
         Type(
             "toggle", "Toggle / button",
@@ -88,6 +99,7 @@ object TileTypes {
                 name,
                 Prop("labels", "text list", "Line labels in the same order as the entities, comma separated. Default: friendly names."),
                 Prop("hours", "integer 1-336", "Hours shown. Default 24."),
+                Prop("style", "enum", "\"\" a step line; \"bars\" an average per hour (per slice past two days); \"sparkline\" a filled line without legend or scale.", listOf("", "bars", "sparkline")),
                 unit, decimals, opacity, background, border, textSize,
             ),
             domains = listOf("sensor", "input_number", "number"), multi = true,
@@ -127,6 +139,23 @@ object TileTypes {
             size = 3 to 1, minSize = 2 to 1,
             props = listOf(Prop("entity", "entity id", "A light, cover, fan, media_player, number or input_number.", required = true), name, icon, opacity, background, border, textSize),
             domains = listOf("light", "cover", "fan", "media_player", "number", "input_number"),
+        ),
+        Type(
+            "chips", "Chips",
+            "A row of small rounded chips, one per entity: icon and value. Lights, switches and the like light up when on and toggle on a tap. A status strip for a page's top.",
+            size = 12 to 1, minSize = 2 to 1,
+            props = listOf(Prop("entity", "entity ids", "Entities, comma separated.", required = true), decimals),
+            multi = true,
+        ),
+        Type(
+            "heading", "Heading",
+            "A section title on the panel's background: big with a subtitle, or with \"style\": \"separator\" a title with a line beside it.",
+            size = 12 to 1, minSize = 2 to 1,
+            props = listOf(
+                Prop("name", "text", "The title.", required = true),
+                Prop("subtitle", "text", "Smaller text under the title."),
+                Prop("style", "enum", "\"\" a big title, \"separator\" a title and a line.", listOf("", "separator")),
+            ),
         ),
         Type(
             "space", "Empty space",
