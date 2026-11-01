@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.LocalTextStyle
@@ -57,7 +61,9 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
 
     // Follow page changes from outside (sleep, Home Assistant) and report swipes back.
     LaunchedEffect(pager) {
-        currentPage.collect { page -> if (page in layout.pages.indices && page != pager.currentPage) pager.animateScrollToPage(page) }
+        currentPage.collect { page ->
+            if (page in layout.pages.indices && page != pager.currentPage) pager.animateScrollToPage(page, animationSpec = PAGE_TURN)
+        }
     }
     LaunchedEffect(pager) {
         snapshotFlow { pager.currentPage }.collect { currentPage.value = it }
@@ -78,6 +84,8 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
         HorizontalPager(
             pager,
             Modifier.fillMaxSize(),
+            // A quick, firm settle instead of the default soft spring, which took about half a second.
+            flingBehavior = PagerDefaults.flingBehavior(state = pager, snapAnimationSpec = PAGE_TURN),
             beyondViewportPageCount = (layout.pages.size - 1).coerceAtLeast(0),
             key = { layout.pages.getOrNull(it)?.id ?: it },
         ) { index ->
@@ -133,7 +141,9 @@ val LocalPreview = staticCompositionLocalOf { false }
 private fun PageView(layout: Layout, page: Page) {
     // Half the gap around each tile and half around the page: the gap between cards and at the edge.
     val half = (layout.theme.gap / 2f).dp
-    BoxWithConstraints(Modifier.fillMaxSize().padding(half)) {
+    // Its own layer: while pages slide, the finished page moves as a picture instead of every
+    // graph, text and card on it being drawn again on every frame.
+    BoxWithConstraints(Modifier.fillMaxSize().graphicsLayer().padding(half)) {
         val cellWidth = maxWidth / layout.columns
         val cellHeight = maxHeight / layout.rows
         page.tiles.forEach { tile ->
@@ -183,3 +193,5 @@ private fun SettingsCorner(onOpen: () -> Unit) {
     )
 }
 
+// Page changes, swiped or from Home Assistant: a quarter of a second.
+private val PAGE_TURN = tween<Float>(durationMillis = 250, easing = FastOutSlowInEasing)
