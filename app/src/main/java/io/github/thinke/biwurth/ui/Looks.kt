@@ -269,7 +269,7 @@ internal fun BoxWithConstraintsScope.ChipsTile(tile: Tile, ha: DataHub) {
     ) {
         ids.forEach { id ->
             val entity = ha.entity(id)
-            val toggles = TileTypes.domainOf(id) in TileTypes.BY_KEY.getValue("toggle").domains
+            val toggles = ha.canPress(id)
             val on = entity?.state in setOf("on", "open", "playing", "home", "heat", "cool")
             val tint = if (!toggles || on) seriesColor(0).takeIf { !toggles } ?: theme.accent else theme.muted
             // As Mushroom's chips: a switch says its state, a reading its value; short either way.

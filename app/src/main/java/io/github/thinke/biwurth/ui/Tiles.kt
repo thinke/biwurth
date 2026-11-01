@@ -106,7 +106,8 @@ fun TileView(tile: Tile) {
 private fun TileContent(tile: Tile, ha: DataHub) {
     when (tile.type) {
         "clock" -> ClockTile(tile)
-        "entity" -> Card(button = true) { EntityTile(tile, ha) }
+        // A pill suits a button; trend, gauge and progress are data, drawn in a card.
+        "entity" -> Card(button = tile.prop("style") !in setOf("trend", "gauge", "progress")) { EntityTile(tile, ha) }
         "toggle" -> ToggleTile(tile, ha)
         "graph" -> Card { GraphTile(tile, ha) }
         "weather" -> Card { WeatherTile(tile, ha) }
@@ -540,12 +541,37 @@ internal fun iconFor(tile: Tile, entity: HomeAssistant.Entity?): String? {
         "weather" -> "sun"
         "calendar" -> "calendar"
         else -> when {
+            // Without a device class (Modbus, MQTT and other own fields often have none), the name
+            // usually says what it is.
+            unit.startsWith("°") -> "thermometer"
+            deviceClass.isEmpty() && nameIcon(entity?.name ?: id) != null -> nameIcon(entity?.name ?: id)
             deviceClass == "temperature" || unit.startsWith("°") -> "thermometer"
             deviceClass in setOf("humidity", "moisture") -> "drop"
             deviceClass in setOf("power", "current", "voltage", "energy", "battery", "monetary") -> "bolt"
             unit in setOf("W", "kW", "kWh", "Wh", "A", "V") || "/kWh" in unit -> "bolt"
             else -> "gauge"
         }
+    }
+}
+
+// An icon from words in a name or id: "Humidity", "src.plc.door", "Kitchen lights", …
+private fun nameIcon(name: String): String? {
+    val n = name.lowercase()
+    return when {
+        listOf("humid", "kosteus").any(n::contains) -> "drop"
+        listOf("temp", "lämpö").any(n::contains) -> "thermometer"
+        listOf("co2", "co₂", "air quality").any(n::contains) -> "gauge"
+        listOf("solar", "aurinko", "sun").any(n::contains) -> "sun"
+        listOf("battery", "akku").any(n::contains) -> "bolt"
+        listOf("power", "energy", "teho", "sähkö", "price", "hinta", "kwh").any(n::contains) -> "bolt"
+        listOf("light", "lamp", "valo").any(n::contains) -> "bulb"
+        listOf("heat", "lämmi").any(n::contains) -> "thermometer"
+        listOf("fan", "tuuletin").any(n::contains) -> "fan"
+        (listOf("door", "ovi", "window", "ikkuna", "lock").any(n::contains) && "outdoor" !in n && "indoor" !in n) -> "home"
+        listOf("tv", "media").any(n::contains) -> "tv"
+        listOf("coffee", "kahvi").any(n::contains) -> "coffee"
+        listOf("plug", "socket", "pistorasia").any(n::contains) -> "plug"
+        else -> null
     }
 }
 
@@ -690,8 +716,10 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
                     // Bars: an average per slice, from zero (or the lowest value, if below zero) up.
                     val buckets = if (hours <= 48) hours else 24
                     val bars = if (look == "bars") prepared.map { it.bucketAverages(start, now, buckets) } else emptyList()
+                    // Scaled to the averages, not to the raw readings: one spike mustn't flatten the bars.
+                    val barMax = bars.maxOfOrNull { b -> b.filterNot { it.isNaN() }.maxOrNull() ?: 0f } ?: maxTarget
                     val barLow = minOf(0f, minTarget)
-                    val barRange = (maxTarget - barLow).takeIf { it > 0f } ?: 1f
+                    val barRange = (barMax - barLow).takeIf { it > 0f } ?: 1f
                     val grid = style.graphGrid
                     val gridColor = gridColor
                     val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))

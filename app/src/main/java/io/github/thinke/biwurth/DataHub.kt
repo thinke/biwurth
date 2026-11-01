@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth
 
+import io.github.thinke.biwurth.config.TileTypes
 import io.github.thinke.biwurth.ha.HomeAssistant
 import io.github.thinke.biwurth.sources.Sources
 import kotlinx.coroutines.CoroutineScope
@@ -116,6 +117,9 @@ class DataHub(private val sources: Sources) {
                 .onFailure { EventLog.e("ha", "$domain.$service on $id failed: ${it.message ?: it.javaClass.simpleName}") }
         }
     }
+
+    /** Whether a tap can switch [id]: Home Assistant's switchable domains, or an own field with an action (a coil). */
+    fun canPress(id: String): Boolean = if (isOwn(id)) sources.canPress(id) else TileTypes.domainOf(id) in TileTypes.BY_KEY.getValue("toggle").domains
 
     fun press(id: String) {
         val owner = owner(id)

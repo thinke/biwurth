@@ -1,212 +1,181 @@
 # biwurth
 
-A wall display for Home Assistant on an Android tablet: a kiosk launcher that shows your home on
-pages of tiles, configured from a website the tablet hosts itself, and that shows up in Home
-Assistant as an MQTT device. Built and tested on a Cepter Tab Nexa (CTABNEXT10C, Unisoc T7250,
-Android 16, 4 GB RAM); any Android 8.0+ tablet should do. On older Android: `set-standby-bucket`
-is missing before 9, kiosk mode on 8.0/8.1 hides only what Android itself decides, and updates
-without device owner ask for confirmation every time before Android 12.
+**A wall panel for your home on any Android tablet.** biwurth turns a tablet into a fast, native
+(not web-view) dashboard: pages of tiles you swipe between, designed on a website the tablet hosts
+itself, fed by Home Assistant or by its own data sources (HTTP, MQTT, Modbus TCP, status checks),
+and locked down as a kiosk. It shows up in Home Assistant as a device, wakes when someone walks
+up, and has an API that people, scripts and LLMs can build layouts with.
 
-- **Panel** (the tablet screen): pages of tiles you swipe between: clock, entity value,
-  toggle/button, history graph (several sensors per graph), weather, calendar, camera. Any
-  resolution and orientation, with colour themes and the Inter font (tabular figures). The
-  background is the theme colour, a colour, a gradient (optionally slowly turning) or a picture
-  (fill, fit, stretch, tile, centre, dimmed), and tiles can be see-through.
-- **Website** on the tablet (`http://<tablet>:2323`): drag-and-drop layout editor, pages,
-  orientation, grid and theme, plus Home Assistant, MQTT and screen settings.
-- **Own data sources**, with or without Home Assistant: HTTP/JSON APIs, MQTT topics, status
-  checks and Modbus TCP, as entities every tile can show, with history kept on the tablet.
-- **MQTT device**: the tablet appears in Home Assistant with a screen switch, brightness,
-  sleep timeout and page select, and battery, charging, last touch, Wi-Fi and IP sensors.
+| | |
+|---|---|
+| ![Home in the default dark theme](docs/screenshots/home-dark.png) | ![Home in Aurora](docs/screenshots/home-aurora.png) |
+| ![Home in Mushroom](docs/screenshots/home-mushroom.png) | ![Energy in Bubble Card](docs/screenshots/energy-bubble-card.png) |
+| ![Climate in Ant Design Dark](docs/screenshots/climate-ant-design-dark.png) | ![Calendar in Chakra UI](docs/screenshots/calendar-chakra-ui.png) |
+| ![Home in Bootstrap](docs/screenshots/home-bootstrap.png) | ![Climate in Mushroom Dark](docs/screenshots/climate-mushroom-dark.png) |
 
-## Build and install
+*Screenshots are drawn by the panel itself (`/api/screenshot`) from generated demo data.*
 
-```sh
-./gradlew assembleRelease
-adb install -r app/build/outputs/apk/release/app-release.apk
-adb shell cmd package compile -m speed -f io.github.thinke.biwurth
-adb shell cmd package set-home-activity io.github.thinke.biwurth/.MainActivity
-```
+## What it does
 
-Use the release build on the tablet: the debug build is several times slower (swiping pages
-stuttered up to 500 ms per frame in debug, 24 ms in release). Both are signed with the debug
-key, so either installs over the other and keeps the settings.
+- **Tiles, each with several looks**: clock (digital, analog) · value (number, trend with a
+  sparkline, gauge, progress bar) · toggle (lights up, switch, icon) · slider for dimmers,
+  covers, fans, volume and numbers · thermostat (dial, ring, numbers, bar, pill, thermometer;
+  one or two setpoints, set by dragging the dial) · graph (line, hourly bars, sparkline) ·
+  weather · calendar (list, week, month) · camera (go2rtc, RTSP, HLS) · chips (a status row) ·
+  heading · empty space with a picture (SVG too).
+- **Themes**: colours, fonts, card shape, borders, shadows, gaps, icons, graph and calendar
+  styling, as zip packages with their own pictures and page templates. Built in: Aurora, Ant
+  Design (light and dark), Bootstrap (light and dark), Chakra UI (light and dark), Evergreen,
+  Mushroom (light and dark) and Bubble Card (light and dark). `tools/theme-from-tokens.py`
+  makes a theme from any design system's tokens.
+- **Looks the same on any screen**: a layout keeps its proportions on a 7" tablet, a 10" one or a
+  TV, in landscape or portrait.
+- **Presence**: wakes the panel when someone moves in front of it. A calibration checks the
+  tablet's camera and sensors where it hangs and makes a plan; Home Assistant gets Motion and
+  Room brightness sensors. Camera frames are looked at on the tablet and dropped.
+- **Your own data, with or without Home Assistant**: HTTP/JSON, MQTT topics, status checks and
+  Modbus TCP, as entities every tile can show, with two weeks of history on the tablet.
+- **Kiosk**: device owner, locked to the panel, silent updates from GitHub releases, set up from
+  a QR code on a factory-reset tablet.
+- **Home Assistant device** over MQTT: screen, brightness, page, sleep timeout, motion, battery
+  and more.
+- **API for people, scripts and LLMs**: `http://<tablet>:2323/llms.txt` describes it all; check a
+  layout without saving, screenshot a draft, edit single tiles, undo, benchmark.
+
+Any Android 8.0+ tablet works. Very old Android versions have a few limits (see below).
+
+## Getting started
+
+1. Install the latest APK from [Releases](../../releases) (or set up a factory-reset tablet from a
+   QR code, below).
+2. Open biwurth and tap the panel's top-left corner five times for Settings: it shows the
+   website address and the key.
+3. Open `http://<tablet IP>:2323` in a browser and enter the key. Add Home Assistant on the
+   Sources tab (URL and a long-lived access token), then build pages on the Layout and Tile tabs,
+   or start from a page template and a theme.
+4. **Compile & save**: the tablet checks the layout, preloads its data and switches to it.
+
+`http://<tablet IP>:2323/#key=<key>` logs in directly; give the tablet a fixed IP.
 
 ## Website
 
-Open `http://<tablet IP>:2323` and enter the key from the tablet's Settings (tap the top-left
-corner of the panel five times). `http://<tablet IP>:2323/#key=<key>` logs in directly and is
-fine to bookmark on your own devices.
-
-- **Layout**: drag tiles to move, drag the corner to resize; pages (× on the tab deletes one),
-  orientation, grid size, theme and font; export a page to a file and import it on any panel.
-- **Compile & save**: the tablet checks the layout (overlaps, missing or non-numeric entities,
-  cameras without a source), preloads its data (history, forecasts, calendars, snapshots) and
-  only then switches to it. The report shows the time taken and any warnings.
-- **Cameras**: go2rtc address (Frigate's built-in one works), live stream limit, and whether
-  cameras stay live while the backlight is off. A camera tile takes a go2rtc stream name or a
-  full `rtsp://` / HLS URL; tap it for full screen.
-- **Log**: biwurth's own log on the tablet (connections, camera and source errors, updates,
-  crash stack traces), up to about 1 MB; view, download or clear it.
-- **Backup**: everything above in one file, the HA token and MQTT password only if ticked;
-  restore applies a file (and compiles its layout).
-- **Home Assistant**: URL and long-lived access token (profile → Security). The token is stored
-  on the tablet only and never sent back to the browser.
-- **MQTT**: broker host, port, user, password, TLS and the device name in Home Assistant.
-- **Screen**: sleep timeout, sleep mode, brightness, wake/sleep now.
+- **Layout**: drag tiles to move, drag the corner to resize; pages, page templates, orientation,
+  grid, theme, gap, card and tile styling, animations; themes to import, use, export or make
+  from the current look.
+- **Tile**: type, entity, look and the type's own settings.
+- **Compile & save**: checks overlaps, sizes, missing or wrong entities, cameras and pictures;
+  preloads history, forecasts, calendars and pictures; reports the drawing cost.
+- **Sources**: Home Assistant and biwurth's own data sources (below).
+- **Cameras**: go2rtc address, live stream limit, live while the backlight is off.
+- **Screen**: sleep timeout and mode, brightness, FPS counter, presence and its calibration,
+  a benchmark.
+- **Backup**, **Updates**, **Log**, **MQTT**.
 
 ## Data sources
 
-Website → **Sources**. Home Assistant is one of them (on/off; its URL and token are on the Home
-Assistant tab); the others can be added as many times as needed, each switched on or off. Every
-field becomes an entity `src.<source>.<field>` (Home Assistant ids have one dot, these two),
-which any tile can show. Numeric values are kept on the tablet for two weeks, so graphs work
-without Home Assistant and survive restarts.
+Every field of a source becomes an entity `src.<source>.<field>` that any tile can show; numbers
+are kept on the tablet for two weeks, so graphs and trends work without Home Assistant.
 
 | Source | Settings | Each field |
 |---|---|---|
-| HTTP / JSON | URL, interval, headers (`Name: value` per line, e.g. API keys) | a JSON path: `current.temperature_2m`, `data[0].value`; empty = the whole reply |
-| MQTT topics | the broker from the MQTT tab | a topic and optionally a JSON path; a command topic with on/off payloads makes it a button |
-| Status checks | interval | an `http(s)://` URL (up below status 400) or `host:port` (TCP); also `<field>_ms` |
-| Modbus TCP | host, port, unit id, interval | holding/input register (int16, uint16, int32, uint32, float32, word order, scale) or coil/discrete input; a coil is a button that switches it |
+| Home Assistant | URL, long-lived access token | all its entities (several Home Assistants can be added) |
+| HTTP / JSON | URL, interval, headers (API keys) | a JSON path: `current.temperature_2m`, `data[0].value` |
+| MQTT topics | the broker from the MQTT tab | a topic and optionally a JSON path; a command topic makes it a button |
+| Status checks | interval | an `http(s)://` URL or `host:port`; also `<field>_ms` |
+| Modbus TCP | host, port, unit id, interval | holding/input register (int16 … float32, word order, scale) or coil/discrete input; a coil is a button |
 
-Each source can also **record telemetry**: its readings (on every change, or every reading)
-and what happened (presses from the panel, errors, "working again"), one CSV file per source
-per day (`time,field,value`), kept for a set number of days and downloadable from the source on
-the website: today, 7 days or everything. "Every reading" of 10 Modbus fields every 10 s is
-about 3 MB a day.
+Each source can also record **telemetry** (readings and events, a CSV per day) to download from
+the website.
 
-Backups include the sources; HTTP headers only with "include secrets", as they often hold keys.
+## Sleep and presence
 
-## Planned
+| Mode | Asleep | Wakes on |
+|---|---|---|
+| Backlight off (default) | screen on, backlight 0, black | a touch, motion, MQTT, the API |
+| Screen off | screen really off (needs device admin) | the power button, MQTT, the API |
 
-**CAN bus.** The tablet's kernel has CAN networking (`CAN_RAW`, `CAN_BCM`) but no CAN
-interfaces or USB adapter drivers, and bringing one up needs root, so SocketCAN can't be used
-on the tablet itself. The routes that work without root:
+Presence (motion) needs the Backlight off mode: Android stops the camera when the screen is off.
+Going to sleep returns the panel to its first page.
 
-- a USB CAN adapter driven by biwurth in user space over Android's USB host API (the tablet has
-  it): slcan/Lawicel adapters (CANable with slcan firmware) and candleLight/gs_usb (CANable 2,
-  CANtact), with an OTG cable that also charges the tablet;
-- SocketCAN over the network from a Linux machine or Raspberry Pi running `socketcand` or
-  `cannelloni`;
-- a CAN → MQTT bridge (e.g. an ESP32), read with an MQTT source.
+## Home Assistant (MQTT device)
 
-Frames would be decoded by simple signal definitions (id, start bit, length, byte order, scale,
-offset, unit) or an uploaded DBC file, and buttons could send frames.
+With the MQTT integration (Home Assistant 2024.11 or newer) the tablet appears through device
+discovery with a screen switch, brightness, sleep timeout and page select, and motion, room
+brightness, battery, charging, last touch, Wi-Fi and IP sensors, plus an update entity. Topics
+live under `biwurth/biwurth_<id>/`.
 
-**Uploading logs and telemetry.** Today both stay on the tablet and are downloaded from the
-website (the Log tab, each source's card). Later biwurth could send them on by itself, for
-example nightly: an HTTP POST to an endpoint of your own, MQTT to Home Assistant, or a network
-share (SMB/WebDAV), with what to send and how often set on the website.
+## API
 
-## Releases and updates
-
-Pushing a tag `v1.2.3` builds a signed APK on GitHub Actions and publishes it as a release with
-its `.sha256` (`.github/workflows/release.yml`); a tag with a suffix (`v1.2.3-rc1`) becomes a
-pre-release. The repo needs four secrets, the same keystore as SnapTV: `BIWURTH_KEYSTORE_BASE64`
-(`base64 -w0 release.jks`), `BIWURTH_KEYSTORE_PASSWORD`, `BIWURTH_KEY_ALIAS`, `BIWURTH_KEY_PASSWORD`.
-
-The app checks for releases daily (website → Updates, or Home Assistant's update entity), checks
-each download against its SHA-256 and the installed app's signing key, and installs it. Updates
-only reach release builds signed with that key: install one release by hand first; debug builds
-never update.
-
-## One-time tablet setup (over adb)
-
-Device admin (for the "Screen off" sleep mode) needs no adb: **Allow screen off** in the
-tablet's Settings, or on the website's Screen tab, opens Android's own dialog on the tablet.
-**Remove device admin** in the tablet's Settings gives it back, which Android requires before
-biwurth can be uninstalled. The rest:
+Everything under `/api/*`, and `/state`, `/wake` and `/sleep`, needs `Authorization: Bearer <key>`:
 
 ```sh
-# Background: no Doze or app standby, so MQTT and the website stay up with the screen off
-adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
-adb shell am set-standby-bucket io.github.thinke.biwurth active   # Android 9+
+curl -H "Authorization: Bearer $KEY" http://<tablet>:2323/state   # {"screen":"awake"|"dimmed"|"off"}
+curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/wake
 ```
 
-Many tablets open the assistant (Gemini) when the power button is held. For a power menu
-(Power off, Restart), which kiosk mode keeps available, set it once: Settings → System →
-Gestures → Press and hold power button → Power menu, or over adb:
+The full reference, written for LLMs and scripts, is `http://<tablet>:2323/llms.txt` (readable
+without the key): tile schema, layout check, automatic placement, page and tile edits, undo,
+themes and templates, entity search, presence, benchmark and `/api/screenshot`.
 
-```sh
-adb shell settings put global power_button_long_press 1
-```
-
-App standby buckets came in Android 9, so `set-standby-bucket` fails on 8.0/8.1: skip it, the
-deviceidle whitelist is enough.
-
-A foreground service (`PanelService`) keeps the process running when another app is in front,
-and holds the CPU awake while the screen is off so MQTT keep-alives don't stall.
+## Tablet setup
 
 ### Kiosk mode (device owner)
 
-Android only allows a device owner when no accounts are on the tablet, so remove the Google
-account first (Settings → Passwords & accounts). Then:
+Android allows a device owner only when no accounts are on the tablet, so remove them first, and
+any screen lock PIN. Then over adb:
 
 ```sh
 adb shell dpm set-device-owner io.github.thinke.biwurth/.AdminReceiver
 ```
 
-biwurth configures itself the moment it becomes device owner, no restart needed: it disables
-the lock screen, stays the home app, locks the tablet to itself (no
-status bar, Home or Recents), grants itself any runtime permission without prompts and installs
-its updates silently. Remove the screen lock PIN first: Android won't drop a lock screen that has
-one. Turn kiosk mode off in the tablet's Settings to reach Android.
+biwurth then configures itself: no lock screen, the home app, locked to the panel (no status
+bar, Home or Recents), runtime permissions granted, updates installed silently. Turn kiosk mode
+off in the tablet's Settings to reach Android; **Release device owner** there undoes it.
 
-On Android 8.0/8.1 the lock task can't be configured (that came in Android 9), so Android itself
-decides what it hides (Home and Recents). The **Wi-Fi…** and **Android settings…** buttons in the
-tablet's Settings leave kiosk mode while Android's Settings are open, and kiosk mode resumes
-when the panel comes back.
+### From a QR code
 
-adb can't remove a device owner. To undo it, use **Release device owner** in the tablet's
-Settings (top-left corner, five taps); after that biwurth can be uninstalled.
+On a running panel's website, Backup → **Set up a new tablet** shows a QR code (optionally with
+Wi-Fi). On a factory-reset tablet's first "Welcome" screen, tap six times in the same spot and
+scan it: Android downloads the latest release, checks its signature, and makes biwurth device
+owner. Restore a backup to bring a layout over.
 
-### Setting up a new tablet with a QR code
-
-Instead of adb, a factory-reset tablet can become a biwurth panel straight from Android's setup:
-on any running panel's website, Backup → **Set up a new tablet** shows a QR code (optionally with
-Wi-Fi). On the new tablet's first "Welcome" screen, tap six times in the same spot and scan it:
-Android downloads the latest biwurth release from GitHub, checks it's signed with the release
-key, and makes it device owner, which then configures itself. No Google account is added.
-Restore a backup from the old panel's website to bring the layout over. The code only works
-from a panel running a release build (it carries the release key's checksum). On Android 8.x
-the setup wizard asks for Wi-Fi first, to download its QR reader.
-
-## Sleep
-
-| Mode | Asleep | Wakes on |
-|---|---|---|
-| Backlight off (default) | screen on, backlight 0, black | a touch (the touch itself is not passed on), MQTT, the API |
-| Screen off | screen really off (`lockNow`) | the power button, MQTT, the API |
-
-The tablet's double-tap-to-wake setting is on but the touchscreen ignores it, hence these modes.
-Going to sleep returns the panel to its first page.
-
-## MQTT device
-
-Uses Home Assistant's device discovery (`homeassistant/device/biwurth_<id>/config`), so it needs
-Home Assistant 2024.11 or newer and the MQTT integration. Topics live under `biwurth/biwurth_<id>/`:
-`state` (retained JSON), `availability` (`online`/`offline`, also the last will) and
-`<screen|brightness|sleep_after|page>/set`. The device's page in Home Assistant links back to
-the website.
-
-## HTTP API
-
-Every `/api/*` call and the three below need `Authorization: Bearer <key>`:
+### Background
 
 ```sh
-curl -H "Authorization: Bearer $KEY" http://<tablet>:2323/state   # {"screen":"awake"|"dimmed"|"off"}
-curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/wake
-curl -X POST -H "Authorization: Bearer $KEY" http://<tablet>:2323/sleep
+# No Doze or app standby, so MQTT and the website stay up with the screen off
+adb shell cmd deviceidle whitelist +io.github.thinke.biwurth
+adb shell am set-standby-bucket io.github.thinke.biwurth active   # Android 9+
 ```
 
-Give the tablet a fixed IP (DHCP reservation) so the website and these keep working.
+For a power menu instead of the assistant on a long press of the power button:
+`adb shell settings put global power_button_long_press 1`.
 
-The whole API, written for LLMs and scripts, is at `http://<tablet>:2323/llms.txt` (no key
-needed to read it). It covers the tile schema (`/api/schema`), checking a layout without saving it
-(`/api/layout/check`), automatic tile placement, small page and tile edits, undo, entity search,
-and `/api/screenshot`, which draws a page (also an unsaved draft) off-screen as the tablet would
-show it.
+**Older Android:** on 8.0/8.1 app standby buckets don't exist (skip that command), kiosk mode
+hides only what Android decides, and before Android 12 updates without device owner ask for
+confirmation.
+
+## Building
+
+```sh
+./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+Use a release build on a tablet: debug builds are several times slower. Release signing comes
+from the environment (`BIWURTH_KEYSTORE`, `BIWURTH_KEYSTORE_PASSWORD`, `BIWURTH_KEY_ALIAS`,
+`BIWURTH_KEY_PASSWORD`); without it, local release builds use the debug key.
+
+Pushing a tag `v1.2.3` builds a signed APK on GitHub Actions and publishes a release with its
+`.sha256`; a suffix (`v1.2.3-rc1`) makes a pre-release. The workflow takes the keystore from
+the repository secrets `BIWURTH_KEYSTORE_BASE64` (`base64 -w0 release.jks`),
+`BIWURTH_KEYSTORE_PASSWORD`, `BIWURTH_KEY_ALIAS` and `BIWURTH_KEY_PASSWORD`. Panels check for
+releases daily and install updates signed with the same key.
+
+## Planned
+
+- **CAN bus**: a USB CAN adapter (slcan, gs_usb) over Android's USB host API, `socketcand` over
+  the network, or a CAN → MQTT bridge; frames decoded by signal definitions or a DBC file.
+- **Uploading logs and telemetry** on a schedule: HTTP, MQTT or a network share.
 
 ## License
 

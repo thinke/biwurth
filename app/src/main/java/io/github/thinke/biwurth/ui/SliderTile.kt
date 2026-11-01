@@ -116,14 +116,16 @@ internal fun BoxWithConstraintsScope.SliderTile(tile: Tile, ha: DataHub) {
     // A track under the name, the level filled in the accent, a knob at its end.
     val track = (maxHeight * 0.14f).coerceIn(6.dp, 16.dp)
     Column(Modifier.fillMaxSize().then(gestures)) {
+        // The name and value get the height the track leaves, descenders and all.
+        val textSize = minOf((maxHeight * 0.2f).coerceIn(MIN_TEXT, 22.dp), (maxHeight - track * 2 - 4.dp) * 0.62f).coerceAtLeast(10.dp)
         Row(Modifier.fillMaxWidth().weight(1f), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
                 TileIconSmall(icon, if (on) theme.accent else theme.muted, (maxHeight * 0.4f).coerceIn(20.dp, 44.dp))
                 Spacer(Modifier.width(8.dp))
             }
-            Text(name, color = theme.text, fontSize = label((maxHeight * 0.2f).coerceIn(MIN_TEXT, 22.dp), fits = true), fontWeight = FontWeight.Medium,
+            Text(name, color = theme.text, fontSize = label(textSize, fits = true), fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Text(label, color = if (on) theme.text else theme.muted, fontSize = label((maxHeight * 0.2f).coerceIn(MIN_TEXT, 22.dp)), fontWeight = valueWeight(), maxLines = 1)
+            Text(label, color = if (on) theme.text else theme.muted, fontSize = label(textSize, fits = true), fontWeight = valueWeight(), maxLines = 1)
         }
         Box(Modifier.fillMaxWidth().height(track * 2), contentAlignment = Alignment.CenterStart) {
             Box(Modifier.fillMaxWidth().height(track).clip(RoundedCornerShape(50)).background(theme.muted.copy(alpha = 0.22f)))

@@ -147,6 +147,9 @@ class Sources(private val config: ConfigStore, filesDir: File) {
         actions[entityId] = source to action
     }
 
+    /** Whether a tap does something for this field (a Modbus coil, …). */
+    fun canPress(entityId: String) = actions.containsKey(entityId)
+
     /** A tap from the panel; telemetry records it, and whether it worked. */
     fun press(entityId: String) {
         val (source, action) = actions[entityId] ?: return

@@ -79,7 +79,11 @@ class LayoutCompiler(private val app: PanelApp) {
                 }
                 val domains = TileTypes.BY_KEY[tile.type]?.domains.orEmpty()
                 // Not a toggle's measurement: that's a sensor.
-                for (id in ids.filter { domains.isNotEmpty() && it != tile.prop("measurement") && TileTypes.domainOf(it) !in domains }) {
+                // Own sources' fields have no Home Assistant domain: numbers suit graphs and values,
+                // a coil a toggle. Only what needs Home Assistant (thermostat, slider, weather,
+                // calendar) can't take them.
+                val needsHa = tile.type in setOf("thermostat", "slider", "weather", "calendar")
+                for (id in ids.filter { domains.isNotEmpty() && it != tile.prop("measurement") && (!hub.isOwn(it) || needsHa) && TileTypes.domainOf(it) !in domains }) {
                     warnings += issue("wrong_domain", "${label(tile)}: a ${tile.type} tile takes ${domains.joinToString("/")} entities, not $id.", tile, id)
                 }
                 for (id in ids.filterNot(hub::isOwn)) {

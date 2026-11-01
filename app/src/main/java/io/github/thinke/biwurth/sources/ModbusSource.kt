@@ -83,7 +83,10 @@ internal class ModbusSource(private val source: SourceConfig, private val source
                     "float32" -> buffer.float.toDouble()
                     else -> buffer.short.toDouble()
                 }
-                val value = raw * field.optDouble("scale", 1.0).takeUnless { it.isNaN() }.let { it ?: 1.0 }
+                val scale = field.optDouble("scale", 1.0).takeUnless { it.isNaN() || it == 0.0 } ?: 1.0
+                // Rounded to the scale's own precision: 219 × 0.1 is 21.9, not 21.900000000000002.
+                val decimals = java.math.BigDecimal.valueOf(scale).stripTrailingZeros().scale().coerceIn(0, 6)
+                val value = java.math.BigDecimal.valueOf(raw * scale).setScale(decimals, java.math.RoundingMode.HALF_UP).toDouble()
                 JsonPath.stateOf(value) ?: "0"
             }
         }
