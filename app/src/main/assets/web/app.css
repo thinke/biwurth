@@ -200,3 +200,5 @@ body.wide-aside-log main { grid-template-columns: minmax(0, 1fr) min(760px, 55vw
 table.bench { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
 table.bench th, table.bench td { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); }
 table.bench th:first-child, table.bench td:first-child { text-align: left; }
+
+ul.plan { margin: 4px 0 8px; padding-left: 18px; font-size: 12px; }

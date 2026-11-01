@@ -177,6 +177,26 @@ class WebServer(private val app: PanelApp) {
             }
             "GET /api/config" -> json(200, config())
             "GET /api/schema" -> json(200, schema())
+            "GET /api/presence" -> json(200, presenceJson())
+            "PUT /api/presence" -> {
+                val body = JSONObject(request.body)
+                app.presence.update { p ->
+                    p.copy(
+                        enabled = if (body.has("enabled")) body.getBoolean("enabled") else p.enabled,
+                        keepAwake = if (body.has("keepAwake")) body.getBoolean("keepAwake") else p.keepAwake,
+                        sensitivity = if (body.has("sensitivity")) body.getInt("sensitivity").coerceIn(-2, 2) else p.sensitivity,
+                    )
+                }
+                json(200, presenceJson())
+            }
+            "POST /api/presence/calibrate" -> {
+                // ?step=still|moving&seconds=5-60: see Presence.calibrate.
+                val params = params(request.query)
+                val stats = runCatching {
+                    runBlocking { app.presence.calibrate(params["step"].orEmpty(), (params["seconds"]?.toIntOrNull() ?: 15).coerceIn(5, 60)) }
+                }.getOrElse { throw BadRequest(it.message ?: "Calibration failed") }
+                json(200, presenceJson().put("measured", stats))
+            }
             "POST /api/benchmark" -> {
                 // ?seconds=5-60&mode=idle|full|swipe&warm=1: see Benchmark.
                 val params = params(request.query)
@@ -685,6 +705,13 @@ class WebServer(private val app: PanelApp) {
     private fun usedPictures(): Set<String> =
         (listOf(app.config.layout.value) + app.config.layoutHistory().map { it.second })
             .flatMap { layout -> layout.pages.flatMap { page -> page.tiles.mapNotNull { it.prop("picture") } } }.toSet()
+
+    private fun presenceJson(): JSONObject = JSONObject()
+        .put("inventory", app.presence.inventory.toJson())
+        .put("plan", app.presence.plan.value.toJson())
+        .put("calibration", app.presence.calibrationJson())
+        .put("live", app.presence.liveJson())
+        .put("sleepMode", app.prefs.sleepMode.name)
 
     private fun saveLayout(layout: Layout): Response {
         val report = runBlocking { LayoutCompiler(app).compile(layout) }

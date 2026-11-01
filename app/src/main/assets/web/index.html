@@ -313,6 +313,24 @@
           <button type="button" id="wakeBtn">Wake</button>
           <button type="button" id="sleepBtn">Sleep</button>
         </div>
+        <h2>Presence</h2>
+        <p class="muted">Wakes the panel when someone moves in front of it, and keeps it awake while they
+          do. Calibrate once where the panel hangs: step 1 with nobody in view, step 2 while you walk in
+          front of it. Camera frames are looked at on the tablet and dropped; nothing is kept or sent.</p>
+        <label class="check"><input id="presenceOn" type="checkbox"> Wake on motion</label>
+        <label class="check"><input id="presenceKeep" type="checkbox"> Keep awake while there's motion</label>
+        <label>Sensitivity
+          <select id="presenceSensitivity"><option value="-2">Low</option><option value="-1">Lower</option><option value="0">Normal</option><option value="1">Higher</option><option value="2">High</option></select>
+        </label>
+        <div class="row">
+          <button type="button" id="calStill">1. Nobody there</button>
+          <button type="button" id="calMoving">2. Walk in front</button>
+        </div>
+        <p id="presenceStatus" class="muted"></p>
+        <p id="presenceLive" class="muted"></p>
+        <ul id="presencePlan" class="muted plan"></ul>
+        <details><summary class="muted">What this tablet has</summary><ul id="presenceInventory" class="muted plan"></ul></details>
+
         <h2>Benchmark</h2>
         <p class="muted">Measures how smoothly the panel draws, on the tablet: the screen wakes and, for
           the time set, is left alone, redrawn in full every frame, or swiped between pages. “Warm”

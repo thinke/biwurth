@@ -136,3 +136,10 @@ page id or its number from 0):
   overBudgetPercent (frames over the display's frame time), cpuPercentOfCore. Use it to compare a
   layout or theme change. The panel must be on screen.
 - PUT /api/screen {"showFps": true}: an FPS counter on the panel.
+- GET /api/presence: wake on motion. `inventory` (cameras, sensors, microphone), `plan` (detectors,
+  thresholds, notes on why), `live` (watching, change %, room brightness, motion now, last motion
+  and what saw it). PUT /api/presence {enabled, keepAwake, sensitivity -2..2}.
+  POST /api/presence/calibrate?step=still|moving&seconds=15: calibration where the panel hangs:
+  "still" with nobody in view, then "moving" with someone walking in front; each makes the plan
+  again. Needs the panel on screen and the "Backlight off" sleep mode. Home Assistant (MQTT) gets
+  a Motion and a Room brightness sensor.

@@ -3,6 +3,9 @@
 
     <!-- The website (WebServer) and the Home Assistant connection. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Presence: motion in the front camera wakes the panel. Frames are looked at, never kept. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Wi-Fi signal sensor before Android 10 (WifiManager.connectionInfo). -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

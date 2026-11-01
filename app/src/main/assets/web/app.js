@@ -1699,6 +1699,68 @@ $('#tab-screen').addEventListener('submit', (event) => {
   });
 });
 
+// ---- Presence ----------------------------------------------------------------------------------
+
+let presence = null;
+
+function renderPresence(p) {
+  presence = p;
+  $('#presenceOn').checked = p.plan.enabled;
+  $('#presenceKeep').checked = p.plan.keepAwake;
+  $('#presenceSensitivity').value = String(p.plan.sensitivity);
+  const live = p.live;
+  $('#presenceLive').textContent = (live.running ? `Watching · change ${live.change} %` : 'Not watching') +
+    (live.brightness != null ? ` · room ${live.brightness} %` : '') +
+    (live.motion ? ' · motion now' : '') +
+    (live.lastMotion ? ` · last motion ${new Date(live.lastMotion).toLocaleTimeString()} (${live.lastSource})` : '') +
+    (p.sleepMode === 'SCREEN_OFF' ? ' · needs the Backlight off sleep mode' : '') +
+    (!live.cameraAllowed ? ' · camera not allowed' : '');
+  const notes = p.plan.notes.length ? p.plan.notes : ['Not calibrated yet: it works with general settings until then.'];
+  $('#presencePlan').replaceChildren(...notes.map((n) => Object.assign(document.createElement('li'), { textContent: n })));
+  const inv = p.inventory;
+  $('#presenceInventory').replaceChildren(
+    ...inv.cameras.map((c) => Object.assign(document.createElement('li'), { textContent: `Camera ${c.id}: ${c.facing}, ${c.smallest ?? '?'} at ${c.slowestFps ?? '?'} fps` })),
+    ...inv.sensors.map((x) => Object.assign(document.createElement('li'), { textContent: `${x.kind}: ${x.name} (${x.vendor})${x.wakeUp ? ', wake-up' : ''}` })),
+    Object.assign(document.createElement('li'), { textContent: `Microphone: ${inv.microphone ? 'yes' : 'no'}` }),
+  );
+}
+
+async function refreshPresence() {
+  try { renderPresence(await api('GET', '/api/presence')); } catch (e) { $('#presenceStatus').textContent = e.message; }
+}
+
+async function savePresence() {
+  renderPresence(await api('PUT', '/api/presence', {
+    enabled: $('#presenceOn').checked, keepAwake: $('#presenceKeep').checked, sensitivity: parseInt($('#presenceSensitivity').value, 10),
+  }));
+}
+$('#presenceOn').addEventListener('change', savePresence);
+$('#presenceKeep').addEventListener('change', savePresence);
+$('#presenceSensitivity').addEventListener('change', savePresence);
+
+async function calibrate(step, prompt) {
+  const buttons = [$('#calStill'), $('#calMoving')];
+  buttons.forEach((b) => { b.disabled = true; });
+  try {
+    for (let s = 5; s > 0; s--) {
+      $('#presenceStatus').textContent = `${prompt} in ${s}…`;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    $('#presenceStatus').textContent = step === 'still' ? 'Measuring: stay out of view (15 s)…' : 'Measuring: keep moving in front of the panel (15 s)…';
+    const p = await api('POST', `/api/presence/calibrate?step=${step}&seconds=15`);
+    renderPresence(p);
+    $('#presenceStatus').textContent = step === 'still' ? 'Step 1 done: now step 2.' : 'Calibrated.';
+  } catch (e) {
+    $('#presenceStatus').textContent = `Couldn't calibrate: ${e.message}`;
+  } finally {
+    buttons.forEach((b) => { b.disabled = false; });
+  }
+}
+$('#calStill').addEventListener('click', () => calibrate('still', 'Step out of view'));
+$('#calMoving').addEventListener('click', () => calibrate('moving', 'Walk in front of the panel'));
+// The live reading while the Screen tab is open, for tuning.
+setInterval(() => { if (signedIn() && !$('#tab-screen').hidden) refreshPresence(); }, 2000);
+
 // Benchmark: results stack up in a table, newest first, to compare runs.
 $('#benchRun').addEventListener('click', async () => {
   const button = $('#benchRun');

@@ -11,6 +11,7 @@ import io.github.thinke.biwurth.config.BackgroundStore
 import io.github.thinke.biwurth.config.ConfigStore
 import io.github.thinke.biwurth.config.PictureStore
 import io.github.thinke.biwurth.config.ThemeStore
+import io.github.thinke.biwurth.presence.Presence
 import io.github.thinke.biwurth.sources.Sources
 import io.github.thinke.biwurth.update.Updater
 
@@ -24,6 +25,8 @@ class PanelApp : Application() {
     lateinit var pictures: PictureStore
         private set
     lateinit var themes: ThemeStore
+        private set
+    lateinit var presence: Presence
         private set
     lateinit var sources: Sources
         private set
@@ -48,6 +51,7 @@ class PanelApp : Application() {
         sources = Sources(config, filesDir).also { it.start() }
         hub = DataHub(sources)
         screen = ScreenController(this, prefs)
+        presence = Presence(this)
         updater = Updater(this, prefs)
         mqtt = MqttDevice(this).also { it.start() }
         WebServer(this).start()

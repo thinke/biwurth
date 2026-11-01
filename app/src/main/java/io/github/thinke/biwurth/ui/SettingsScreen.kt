@@ -26,6 +26,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -109,6 +113,8 @@ fun SettingsScreen(activity: Activity, onClose: () -> Unit) {
                     Hint("Needed before biwurth can be uninstalled. Screen off sleep stops working.")
                 }
                 }
+
+                Section("Presence") { PresenceSettings() }
 
                 Section("Performance") {
                     val showFps by FrameStats.showCounter.collectAsState()
@@ -200,4 +206,56 @@ private fun ipAddress(activity: Activity): String? {
     val cm = activity.getSystemService(ConnectivityManager::class.java)
     return cm.getLinkProperties(cm.activeNetwork)?.linkAddresses
         ?.map { it.address }?.firstOrNull { it is Inet4Address }?.hostAddress
+}
+
+/**
+ * Wake on motion: on or off, how sensitive, and the two calibration steps with a countdown each,
+ * so whoever starts one can step out of view (or into it) first. Shows the plan made.
+ */
+@Composable
+private fun PresenceSettings() {
+    val app = LocalContext.current.panel
+    val presence = app.presence
+    val plan by presence.plan.collectAsState()
+    val motion by presence.motion.collectAsState()
+    val scope = rememberCoroutineScope()
+    var status by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+
+    fun run(step: String, prompt: String) {
+        busy = true
+        scope.launch {
+            for (s in 5 downTo 1) {
+                status = "$prompt in $s…"
+                delay(1_000)
+            }
+            status = if (step == "still") "Measuring: stay out of view (15 s)…" else "Measuring: keep moving in front of the panel (15 s)…"
+            status = runCatching { presence.calibrate(step, 15) }.fold(
+                { "Done. ${if (step == "still") "Now the second step." else "Calibrated."}" },
+                { "Couldn't calibrate: ${it.message}" },
+            )
+            busy = false
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Switch(checked = plan.enabled, onCheckedChange = { on -> presence.update { it.copy(enabled = on) } })
+        Text(if (plan.enabled) (if (motion) "Wake on motion · motion now" else "Wake on motion") else "Off")
+    }
+    if (app.prefs.sleepMode == SleepMode.SCREEN_OFF) {
+        Hint("Works with the Backlight off sleep mode: with Screen off, Android stops the camera.")
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text("Sensitivity")
+        listOf(-2 to "Low", 0 to "Normal", 2 to "High").forEach { (value, label) ->
+            FilterChip(selected = plan.sensitivity == value, onClick = { presence.update { it.copy(sensitivity = value) } }, label = { Text(label) })
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(enabled = !busy, onClick = { run("still", "Step out of view") }) { Text("1. Calibrate: nobody there") }
+        OutlinedButton(enabled = !busy, onClick = { run("moving", "Walk in front of the panel") }) { Text("2. Calibrate: moving") }
+    }
+    if (status.isNotEmpty()) Text(status)
+    plan.notes.forEach { Hint(it) }
+    if (plan.calibrated == null) Hint("Not calibrated yet: it works with general settings until then.")
 }

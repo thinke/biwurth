@@ -121,7 +121,7 @@ class MqttDevice(private val app: PanelApp) {
             val jobs = listOf(
                 launch {
                     val screen = app.screen
-                    merge(screen.state, screen.page, screen.brightness, screen.lastTouch)
+                    merge(screen.state, screen.page, screen.brightness, screen.lastTouch, app.presence.motion)
                         .debounce(500)
                         .collect { publishState(client) }
                 },
@@ -230,6 +230,18 @@ class MqttDevice(private val app: PanelApp) {
                     .put("value_template", "{{ value_json.last_touch }}"),
             )
             .put(
+                "motion",
+                component("binary_sensor", "Motion", null)
+                    .put("device_class", "motion")
+                    .put("value_template", "{{ 'ON' if value_json.motion else 'OFF' }}"),
+            )
+            .put(
+                "room_brightness",
+                component("sensor", "Room brightness", "mdi:brightness-percent")
+                    .put("unit_of_measurement", "%").put("state_class", "measurement")
+                    .put("value_template", "{{ value_json.room_brightness }}"),
+            )
+            .put(
                 "battery",
                 component("sensor", "Battery", null)
                     .put("device_class", "battery").put("unit_of_measurement", "%").put("state_class", "measurement")
@@ -318,6 +330,8 @@ class MqttDevice(private val app: PanelApp) {
             .put("battery_temperature", temperature)
             .put("wifi_signal", wifiSignal() ?: JSONObject.NULL)
             .put("ip", ipAddress() ?: JSONObject.NULL)
+            .put("motion", app.presence.motion.value)
+            .put("room_brightness", app.presence.brightness.value ?: JSONObject.NULL)
         runCatching { publish(client, "$base/state", state.toString()) }
     }
 

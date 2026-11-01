@@ -49,6 +49,17 @@ class ScreenController(private val context: Context, private val prefs: Prefs) {
         return woke
     }
 
+    /**
+     * Someone moved in front of the panel (Presence): wakes it and, with [keepAwake], keeps an
+     * awake panel from sleeping, like a touch would, without counting as one.
+     */
+    fun motion(keepAwake: Boolean) {
+        when {
+            _state.value != ScreenState.AWAKE -> wake()
+            keepAwake -> restartIdleTimer()
+        }
+    }
+
     fun wake() {
         if (!power.isInteractive) turnScreenOn()
         _state.value = ScreenState.AWAKE

@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FrameStats.attach(window)
+        panel.presence.setForeground(true)
         Kiosk.closeSystemSettings(this)
         if (panel.prefs.kiosk) Kiosk.enter(this)
         screen.userActivity()
@@ -125,6 +126,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         FrameStats.detach(window)
+        panel.presence.setForeground(false)
         super.onPause()
     }
 
