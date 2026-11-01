@@ -189,7 +189,12 @@ class LayoutCompiler(private val app: PanelApp) {
                 null
             }
             "weather" -> if (connected) suspend { hub.forecast(ids.first()) } else null
-            "calendar" -> if (connected) suspend { hub.calendar(ids.joinToString(","), tile.intProp("days", 7).coerceIn(1, 60)) } else null
+            "calendar" -> if (connected) {
+                val (from, days) = io.github.thinke.biwurth.ui.calendarRange(tile.prop("view") ?: "list", tile.intProp("days", 7).coerceIn(1, 60))
+                suspend { hub.calendar(ids.joinToString(","), days, from) }
+            } else {
+                null
+            }
             // A picture made ready at the tile's exact size, so it shows the moment the layout does.
             "space" -> {
                 val file = tile.prop("picture")?.let(app.pictures::file) ?: return null

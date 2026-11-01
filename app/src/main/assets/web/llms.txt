@@ -72,7 +72,9 @@ overrides) and `tiles`, how tiles are drawn:
 Value and toggle tiles take `props.icon`: one of bed, bolt, bulb, calendar, coffee, computer, drop, fan, gauge, home, moon, plug, power, snowflake, sun, thermometer, tv, or "none"; by
 default the compact layout picks one from the entity (temperature: thermometer, power: bolt, …).
 
-Calendar tiles show today's events with the date in the accent colour and later ones muted; text
+Calendar tiles have a `view`: "" (a list of what's ahead, `days` long), "week" (a column per
+day from today) or "month" (the month as a grid of weeks; give it 6×5 cells or more). In all,
+several calendars are told apart by colour. Calendar tiles show today's events with the date in the accent colour and later ones muted; text
 grows with the tile's width.
 
 Built-in themes: aurora (dark, glowing gradient, line icons) and ant-design (Ant Design's light

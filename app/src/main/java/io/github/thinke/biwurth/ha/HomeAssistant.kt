@@ -46,7 +46,21 @@ class HomeAssistant(private val name: String, private val settings: HaSettings) 
     }
 
     /** An event of [calendar] (the entity it came from, so a tile of several can tell them apart). */
-    data class CalendarEvent(val summary: String, val start: ZonedDateTime, val allDay: Boolean, val calendar: String = "")
+    data class CalendarEvent(
+        val summary: String,
+        val start: ZonedDateTime,
+        val allDay: Boolean,
+        val calendar: String = "",
+        /** When it ends: for an all-day event the start of the day after its last. */
+        val end: ZonedDateTime = start,
+    ) {
+        /** The days it's on, first to last. */
+        fun days(): List<LocalDate> {
+            val first = start.toLocalDate()
+            val last = (if (end > start) end.minusNanos(1) else start).toLocalDate()
+            return generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList()
+        }
+    }
     class Forecast(val time: ZonedDateTime, val condition: String, val high: Double?, val low: Double?)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -268,27 +282,41 @@ class HomeAssistant(private val name: String, private val settings: HaSettings) 
         state.optString("last_changed").ifBlank { state.optString("last_updated") }.ifBlank { null }
             ?.let { runCatching { OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
 
-    fun cachedCalendar(entityIds: String, days: Int): List<CalendarEvent>? = peek("calendar:$entityIds@$days")
+    fun cachedCalendar(entityIds: String, days: Int, from: LocalDate? = null): List<CalendarEvent>? =
+        peek(calendarKey(entityIds, days, from))
 
-    /** Events in the next [days] from one or more calendars (comma separated), soonest first. */
-    suspend fun calendar(entityIds: String, days: Int): List<CalendarEvent> = cached("calendar:$entityIds@$days", 15 * 60_000L) {
-        val zone = ZoneId.systemDefault()
-        val start = Instant.now()
-        val end = start.plus(Duration.ofDays(days.toLong()))
-        entityIds.split(',').map { it.trim() }.filter { it.isNotEmpty() }.flatMap { id ->
-            val events = JSONArray(get("/api/calendars/${enc(id)}?start=$start&end=$end"))
-            (0 until events.length()).map { i ->
-                val event = events.getJSONObject(i)
-                val eventStart = event.getJSONObject("start")
-                val dateTime = eventStart.optString("dateTime")
-                if (dateTime.isNotEmpty()) {
-                    CalendarEvent(event.optString("summary"), OffsetDateTime.parse(dateTime).atZoneSameInstant(zone), false, id)
-                } else {
-                    CalendarEvent(event.optString("summary"), LocalDate.parse(eventStart.getString("date")).atStartOfDay(zone), true, id)
+    // From now (lists: what's ahead) or from the start of a day (week and month views).
+    private fun calendarKey(entityIds: String, days: Int, from: LocalDate?) = "calendar:$entityIds@$days" + (from?.let { "@$it" } ?: "")
+
+    /**
+     * Events in the next [days] from one or more calendars (comma separated), soonest first:
+     * from now, or with [from] from the start of that day (so a week or month shows its past days).
+     */
+    suspend fun calendar(entityIds: String, days: Int, from: LocalDate? = null): List<CalendarEvent> =
+        cached(calendarKey(entityIds, days, from), 15 * 60_000L) {
+            val zone = ZoneId.systemDefault()
+            val start = from?.atStartOfDay(zone)?.toInstant() ?: Instant.now()
+            val end = start.plus(Duration.ofDays(days.toLong()))
+            entityIds.split(',').map { it.trim() }.filter { it.isNotEmpty() }.flatMap { id ->
+                val events = JSONArray(get("/api/calendars/${enc(id)}?start=$start&end=$end"))
+                (0 until events.length()).map { i ->
+                    val event = events.getJSONObject(i)
+                    val eventStart = event.getJSONObject("start")
+                    val eventEnd = event.optJSONObject("end")
+                    val dateTime = eventStart.optString("dateTime")
+                    if (dateTime.isNotEmpty()) {
+                        val startsAt = OffsetDateTime.parse(dateTime).atZoneSameInstant(zone)
+                        val endsAt = eventEnd?.optString("dateTime")?.takeIf { it.isNotEmpty() }?.let { OffsetDateTime.parse(it).atZoneSameInstant(zone) }
+                        CalendarEvent(event.optString("summary"), startsAt, false, id, endsAt ?: startsAt)
+                    } else {
+                        val startsOn = LocalDate.parse(eventStart.getString("date"))
+                        // An all-day event's end date is the day after its last.
+                        val endsOn = eventEnd?.optString("date")?.takeIf { it.isNotEmpty() }?.let(LocalDate::parse) ?: startsOn.plusDays(1)
+                        CalendarEvent(event.optString("summary"), startsOn.atStartOfDay(zone), true, id, endsOn.atStartOfDay(zone))
+                    }
                 }
-            }
-        }.sortedBy { it.start }
-    }
+            }.sortedBy { it.start }
+        }
 
     fun cachedForecast(entityId: String): List<Forecast>? = peek("forecast:$entityId")
 

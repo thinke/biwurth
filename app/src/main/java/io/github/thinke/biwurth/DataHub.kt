@@ -114,14 +114,14 @@ class DataHub(private val sources: Sources) {
 
     // Events carry the tile's own id for their calendar (src.<source>.calendar.x for another Home
     // Assistant), not the id that Home Assistant knows it by.
-    fun cachedCalendar(ids: String, days: Int): List<HomeAssistant.CalendarEvent>? =
+    fun cachedCalendar(ids: String, days: Int, from: java.time.LocalDate? = null): List<HomeAssistant.CalendarEvent>? =
         calendarGroups(ids).flatMap { (ha, locals) ->
-            (ha.cachedCalendar(locals.keys.joinToString(","), days) ?: return null).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
+            (ha.cachedCalendar(locals.keys.joinToString(","), days, from) ?: return null).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
         }.sortedBy { it.start }
 
-    suspend fun calendar(ids: String, days: Int): List<HomeAssistant.CalendarEvent> =
+    suspend fun calendar(ids: String, days: Int, from: java.time.LocalDate? = null): List<HomeAssistant.CalendarEvent> =
         calendarGroups(ids).flatMap { (ha, locals) ->
-            ha.calendar(locals.keys.joinToString(","), days).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
+            ha.calendar(locals.keys.joinToString(","), days, from).map { it.copy(calendar = locals[it.calendar] ?: it.calendar) }
         }.sortedBy { it.start }
 
     // Each Home Assistant with the calendars it owns: their ids there, mapped to the tile's ids.

@@ -103,7 +103,8 @@ object TileTypes {
             props = listOf(
                 Prop("entity", "entity ids", "One or more calendar.* entities, comma separated.", required = true),
                 name,
-                Prop("days", "integer 1-60", "Days ahead. Default 7."),
+                Prop("view", "enum", "\"\" a list of what's ahead, \"week\" a column per day from today, \"month\" the month as a grid (give it 6×5 or more).", listOf("", "week", "month")),
+                Prop("days", "integer 1-60", "Days ahead in the list view. Default 7."),
                 opacity, background, textSize,
             ),
             domains = listOf("calendar"), multi = true,

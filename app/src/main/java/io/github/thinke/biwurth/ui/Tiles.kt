@@ -80,7 +80,7 @@ import java.time.format.TextStyle
 import kotlin.time.Duration.Companion.minutes
 
 // Text follows the tile's size, but never below what's readable from a step away.
-private val MIN_TEXT = 14.dp
+internal val MIN_TEXT = 14.dp
 
 private val ON_STATES = setOf("on", "open", "opening", "playing", "home", "unlocked", "heat", "cool")
 
@@ -187,11 +187,11 @@ private fun valueWeight() = when (LocalTileStyle.current.valueWeight) {
 }
 
 @Composable
-private fun borderColor(): Color = LocalTileStyle.current.borderColor.let(::hexColor) ?: LocalPanelTheme.current.muted.copy(alpha = 0.4f)
+internal fun borderColor(): Color = LocalTileStyle.current.borderColor.let(::hexColor) ?: LocalPanelTheme.current.muted.copy(alpha = 0.4f)
 
 /** A graph's [i]th line colour: the style's own list, else the accent and then a built-in set. */
 @Composable
-private fun seriesColor(i: Int): Color {
+internal fun seriesColor(i: Int): Color {
     val own = LocalTileStyle.current.graphColors.mapNotNull(::hexColor)
     if (own.isNotEmpty()) return own[i % own.size]
     return if (i == 0) LocalPanelTheme.current.accent else SERIES_COLORS[(i - 1) % SERIES_COLORS.size]
@@ -226,7 +226,7 @@ private fun main(auto: Dp, fixedFactor: Float = 1f): TextUnit {
 
 /** Names a tile is about: a button's name, an event, a date. [fits]: [auto] already fills the tile. */
 @Composable
-private fun label(auto: Dp, fits: Boolean = false): TextUnit {
+internal fun label(auto: Dp, fits: Boolean = false): TextUnit {
     LABEL_SIZES[LocalTileTextSize.current]?.let { return it.sp(1f) }
     return if (fits) fitted(auto) else auto.sp(1f)
 }
@@ -836,14 +836,21 @@ private fun BoxWithConstraintsScope.CalendarTile(tile: Tile, ha: DataHub) {
     val maxWidth = maxWidth
     val maxHeight = maxHeight
     val ids = tile.prop("entity") ?: return Title(pickHint(tile, "Pick a calendar"), maxHeight)
-    val days = tile.intProp("days", 7).coerceIn(1, 60)
+    val view = tile.prop("view") ?: "list"
+    // A list looks ahead from now; a week starts today; a month shows its whole grid of weeks.
+    val (from, days) = calendarRange(view, tile.intProp("days", 7).coerceIn(1, 60))
     val connected by ha.connectedSources.collectAsState()
-    var events by remember(ids, days) { mutableStateOf(ha.cachedCalendar(ids, days).orEmpty()) }
-    LaunchedEffect(ids, days, connected) {
+    var events by remember(ids, from, days) { mutableStateOf(ha.cachedCalendar(ids, days, from).orEmpty()) }
+    LaunchedEffect(ids, from, days, connected) {
         while (ha.canFetch(ids.substringBefore(',').trim())) {
-            runCatching { events = ha.calendar(ids, days) }
+            runCatching { events = ha.calendar(ids, days, from) }
             delay(15.minutes)
         }
+    }
+    val calendarIds = ids.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    when (view) {
+        "week" -> return CalendarWeek(tile.prop("name"), events, calendarIds)
+        "month" -> return CalendarMonth(tile.prop("name"), events, calendarIds, from!!)
     }
 
     // Text follows the tile's width, so a big calendar reads from across the room; rows follow the text.
@@ -955,5 +962,5 @@ private fun conditionIcon(condition: String?) = when (condition) {
     else -> "–"
 }
 
-private val TIME = DateTimeFormatter.ofPattern("HH:mm")
+internal val TIME = DateTimeFormatter.ofPattern("HH:mm")
 private val DATE = DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)

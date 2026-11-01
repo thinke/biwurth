@@ -13,7 +13,7 @@ const TYPES = {
     domains: ['sensor', 'input_number', 'number'], multi: 'line', labels: true,
   },
   weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'background', 'textSize'], domains: ['weather'] },
-  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'days', 'opacity', 'background', 'textSize'], domains: ['calendar'], multi: 'calendar' },
+  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'view', 'days', 'opacity', 'background', 'textSize'], domains: ['calendar'], multi: 'calendar' },
   camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
   space: {
     label: 'Empty space', size: [1, 1], fields: ['picture', 'fit', 'opacity'],
@@ -43,6 +43,7 @@ const FIELDS = {
     options: [['', 'Auto (fits the tile)'], ['small', 'Small'], ['medium', 'Medium'], ['large', 'Large'], ['xl', 'Extra large']],
   },
   fit: { label: 'Picture', options: [['', 'Fill the tile'], ['contain', 'Show all of it']] },
+  view: { label: 'View', options: [['', 'List of what\'s ahead'], ['week', 'Week: a column per day'], ['month', 'Month grid (6×5 or bigger)']] },
   icon: { label: 'Icon (compact layout)', options: [['', 'For the entity'], ['none', 'None'], ...[["bed", "bed"], ["bolt", "bolt"], ["bulb", "bulb"], ["calendar", "calendar"], ["coffee", "coffee"], ["computer", "computer"], ["drop", "drop"], ["fan", "fan"], ["gauge", "gauge"], ["home", "home"], ["moon", "moon"], ["plug", "plug"], ["power", "power"], ["snowflake", "snowflake"], ["sun", "sun"], ["thermometer", "thermometer"], ["tv", "tv"]]] },
   background: { label: 'Background', options: [['', 'As the layout (Tiles)'], ['card', 'Card'], ['none', 'None (on the panel background)']] },
 };
