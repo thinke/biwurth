@@ -371,7 +371,9 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
             return@Card
         }
         // A one-row button has no room for three lines: name and state left, the number right.
-        if (measured && maxHeight < 90.dp) {
+        // Only a genuinely short tile (one grid row) goes to one line; a theme's larger padding
+        // alone mustn't push a normal tile there, where the name gets squeezed.
+        if (measured && maxHeight < 64.dp) {
             Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(end = 8.dp)) {
                     Text(name, color = textColor, fontSize = label((maxHeight * 0.32f).coerceAtLeast(MIN_TEXT), fits = true),
@@ -388,18 +390,25 @@ private fun ToggleTile(tile: Tile, ha: DataHub) {
             return@Card
         }
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            // Themes with card heads (a line under titles) title a toggle like every other card.
+            val cardHead = LocalTileStyle.current.titleDivider && !lit
             Row(verticalAlignment = Alignment.Top) {
-                Text(
-                    name,
-                    color = textColor,
-                    fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
-                    fontWeight = FontWeight.Medium,
-                    maxLines = if (measured) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                if (cardHead) {
+                    Box(Modifier.weight(1f)) { Title(name, maxHeight, divider = false) }
+                } else {
+                    Text(
+                        name,
+                        color = textColor,
+                        fontSize = label(minOf(maxHeight * 0.2f, maxWidth * 0.14f).coerceAtLeast(MIN_TEXT), fits = true),
+                        fontWeight = FontWeight.Medium,
+                        maxLines = if (measured) 1 else 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 if (switchStyle) Switch(on, Modifier.padding(start = 8.dp))
             }
+            if (cardHead) TitleDivider()
             if (measured) {
                 Text(
                     value,
@@ -445,12 +454,13 @@ private fun BoxWithConstraintsScope.CompactTile(
     }
     val secondaryColor = if (textColor == theme.text) theme.muted else textColor.copy(alpha = 0.75f)
     if (maxWidth >= maxHeight * 1.4f) {
-        val iconSize = (maxHeight * 0.62f).coerceIn(28.dp, 64.dp)
+        // The icon gives way in narrow tiles, so the name keeps its room.
+        val iconSize = minOf(maxHeight * 0.62f, maxWidth * 0.22f).coerceIn(24.dp, 64.dp)
         val nameSize = (maxHeight * 0.2f).coerceIn(MIN_TEXT, 24.dp)
         Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             if (showIcon) {
                 TileIcon(icon!!, tint, iconSize, on)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(if (maxWidth < 160.dp) 8.dp else 12.dp))
             }
             Column(Modifier.weight(1f)) {
                 Text(name, color = textColor, fontSize = label(nameSize, fits = true), fontWeight = nameWeight, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -618,7 +628,10 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
             // The line goes under the whole head, the value too, so the title doesn't draw it.
             Box(Modifier.weight(1f)) { Title(tile.prop("name") ?: if (lines.size == 1) lines[0].label else "History", maxHeight, divider = false) }
             if (lines.size == 1) {
-                Text(lines[0].value, color = theme.text, fontSize = label(minOf(maxHeight * 0.16f, 40.dp)), fontWeight = valueWeight())
+                Text(
+                    lines[0].value, color = theme.text, fontSize = label(minOf(maxHeight * 0.16f, 40.dp, maxWidth * 0.5f / (lines[0].value.length.coerceAtLeast(3) * 0.55f))),
+                    fontWeight = valueWeight(), maxLines = 1,
+                )
             }
         }
         TitleDivider()

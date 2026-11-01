@@ -69,6 +69,7 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
         snapshotFlow { pager.currentPage }.collect { currentPage.value = it }
     }
 
+    PanelCanvas {
     CompositionLocalProvider(
         LocalPanelTheme provides theme,
         LocalTextStyle provides panelTextStyle(layout.theme.font),
@@ -107,6 +108,7 @@ fun PanelScreen(layout: Layout, currentPage: MutableStateFlow<Int>, onOpenSettin
             SettingsCorner(onOpenSettings)
         }
     }
+    }
 }
 
 /**
@@ -127,9 +129,11 @@ fun PanelPreview(layout: Layout, page: Page) {
         LocalTileStyle provides layout.theme.tiles,
         LocalPreview provides true,
     ) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            PanelBackground(layout.background, theme)
-            PageView(layout, page)
+        PanelCanvas {
+            Box(Modifier.fillMaxSize().background(Color.Black)) {
+                PanelBackground(layout.background, theme)
+                PageView(layout, page)
+            }
         }
     }
 }

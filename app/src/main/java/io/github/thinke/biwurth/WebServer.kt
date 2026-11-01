@@ -366,10 +366,11 @@ class WebServer(private val app: PanelApp) {
             .put("display", display())
     }
 
-    // The panel's native size; the editor turns it to match the chosen orientation.
+    // The screen as it's set now (also a resolution changed in Android); the editor turns it to the
+    // chosen orientation.
     private fun display(): JSONObject {
-        val mode = app.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).mode
-        return JSONObject().put("width", mode.physicalWidth).put("height", mode.physicalHeight)
+        val screen = io.github.thinke.biwurth.ui.screenPixels(app)
+        return JSONObject().put("width", screen.x).put("height", screen.y)
             .put("densityDpi", app.resources.displayMetrics.densityDpi)
     }
 

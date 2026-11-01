@@ -133,11 +133,13 @@ class LayoutCompiler(private val app: PanelApp) {
 
         companion object {
             fun of(app: PanelApp, layout: Layout): Screen {
-                val mode = app.getSystemService(android.hardware.display.DisplayManager::class.java).getDisplay(android.view.Display.DEFAULT_DISPLAY).mode
-                val long = maxOf(mode.physicalWidth, mode.physicalHeight)
-                val short = minOf(mode.physicalWidth, mode.physicalHeight)
+                val screen = io.github.thinke.biwurth.ui.screenPixels(app)
+                val long = maxOf(screen.x, screen.y)
+                val short = minOf(screen.x, screen.y)
                 val portrait = layout.orientation.key.contains("portrait")
-                return Screen(if (portrait) short else long, if (portrait) long else short, app.resources.displayMetrics.density, layout)
+                val width = if (portrait) short else long
+                val height = if (portrait) long else short
+                return Screen(width, height, io.github.thinke.biwurth.ui.panelDensity(width, height), layout)
             }
         }
     }

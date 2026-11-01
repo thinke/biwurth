@@ -351,12 +351,11 @@ function place(el, tile) {
   el.style.height = `calc(${(tile.h / layout.rows) * 100}% - ${2 * half}px)`;
 }
 
-// The panel's gap in dp, in board pixels: the board is the panel's screen, shrunk to fit.
+// The panel's gap in board pixels: the panel is laid out on a 960 × 600 canvas (600 × 960 in
+// portrait) scaled to its screen, and the board is that canvas shrunk to fit.
 function boardGap() {
-  const { width, height, densityDpi } = config.display;
-  const across = layout.orientation.includes('portrait') ? Math.min(width, height) : Math.max(width, height);
-  const acrossDp = across / ((densityDpi || 160) / 160);
-  return (layout.theme.gap ?? 8) * (board.clientWidth || acrossDp) / acrossDp;
+  const across = layout.orientation.includes('portrait') ? 600 : 960;
+  return (layout.theme.gap ?? 8) * (board.clientWidth || across) / across;
 }
 
 // Moves and resizes snap to whole cells and never overlap another tile.

@@ -10,7 +10,6 @@ import android.media.Image
 import android.media.ImageReader
 import android.os.Handler
 import android.os.HandlerThread
-import android.view.Display
 import android.view.ViewGroup
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
@@ -64,9 +63,9 @@ object PanelSnapshot {
 
     /** This tablet's screen in pixels, turned to [orientation] (the editor's Auto: as it's held now). */
     private fun size(context: Context, orientation: Orientation): Pair<Int, Int> {
-        val mode = context.getSystemService(DisplayManager::class.java).getDisplay(Display.DEFAULT_DISPLAY).mode
-        val long = maxOf(mode.physicalWidth, mode.physicalHeight)
-        val short = minOf(mode.physicalWidth, mode.physicalHeight)
+        val screen = screenPixels(context)
+        val long = maxOf(screen.x, screen.y)
+        val short = minOf(screen.x, screen.y)
         val portrait = when (orientation) {
             Orientation.PORTRAIT, Orientation.REVERSE_PORTRAIT -> true
             Orientation.LANDSCAPE, Orientation.REVERSE_LANDSCAPE -> false
