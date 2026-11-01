@@ -1,0 +1,21 @@
+{
+  "id": "ant-design-dark",
+  "name": "Ant Design Dark",
+  "description": "Ant Design's dark mode: near-black cards with hairline borders on black, card titles over a line, switches, the dark-mode blue and AntV chart colours. Flat background, so nothing redraws while idle.",
+  "base": "dark",
+  "colors": {"background": "#000000", "card": "#141414", "text": "#d9d9d9", "muted": "#7d7d7d", "accent": "#1668dc", "onAccent": "#ffffff"},
+  "font": "system",
+  "textScale": 1,
+  "tileOpacity": 100,
+  "gap": 16,
+  "animations": true,
+  "cards": true,
+  "tiles": {
+    "radius": 8, "padding": 16, "borderWidth": 1, "borderColor": "#303030", "shadow": 0,
+    "titleWeight": "bold", "titleColor": "text", "titleDivider": true,
+    "valueWeight": "regular", "toggleStyle": "switch", "clockWeight": "regular",
+    "graphLineWidth": 2, "graphFill": true, "graphGrid": true,
+    "graphColors": ["#3c89e8", "#13c2c2", "#f0884d", "#d580ff", "#7863ff", "#60c42d"]
+  },
+  "background": {"type": "color", "color": "#000000"}
+}
