@@ -234,7 +234,7 @@ internal fun detail(auto: Dp): TextUnit = (DETAIL_SIZES[LocalTileTextSize.curren
 
 // Titles stop growing on big tiles; a 6-row graph doesn't need a huge heading.
 @Composable
-internal fun Title(text: String, height: Dp) {
+internal fun Title(text: String, height: Dp, divider: Boolean = true) {
     val style = LocalTileStyle.current
     val theme = LocalPanelTheme.current
     Column {
@@ -250,14 +250,16 @@ internal fun Title(text: String, height: Dp) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        // A card head's line, full width (out to the card's padding).
-        if (style.titleDivider) {
-            Box(
-                Modifier.padding(top = (style.padding / 2).coerceAtLeast(4).dp).fillMaxWidth().height(1.dp)
-                    .background(borderColor()),
-            )
-        }
+        if (divider) TitleDivider()
     }
+}
+
+/** A card head's line under the title, when the style has one; full width. */
+@Composable
+internal fun TitleDivider() {
+    val style = LocalTileStyle.current
+    if (!style.titleDivider) return
+    Box(Modifier.padding(top = (style.padding / 2).coerceAtLeast(4).dp).fillMaxWidth().height(1.dp).background(borderColor()))
 }
 
 @Composable
@@ -480,11 +482,13 @@ private fun BoxWithConstraintsScope.GraphTile(tile: Tile, ha: DataHub) {
     Column(Modifier.fillMaxSize()) {
         // Name in the top-left corner like every other tile, the current value opposite it.
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-            Box(Modifier.weight(1f)) { Title(tile.prop("name") ?: if (lines.size == 1) lines[0].label else "History", maxHeight) }
+            // The line goes under the whole head, the value too, so the title doesn't draw it.
+            Box(Modifier.weight(1f)) { Title(tile.prop("name") ?: if (lines.size == 1) lines[0].label else "History", maxHeight, divider = false) }
             if (lines.size == 1) {
                 Text(lines[0].value, color = theme.text, fontSize = label(minOf(maxHeight * 0.16f, 40.dp)), fontWeight = valueWeight())
             }
         }
+        TitleDivider()
         if (drawn.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(if (ha.historyAvailable(ids)) "No history yet" else "Waiting for Home Assistant", color = theme.muted)
