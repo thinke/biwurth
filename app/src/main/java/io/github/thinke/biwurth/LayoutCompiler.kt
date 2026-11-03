@@ -1,5 +1,6 @@
 package io.github.thinke.biwurth
 
+import io.github.thinke.biwurth.config.Diagram
 import io.github.thinke.biwurth.config.Layout
 import io.github.thinke.biwurth.config.Tile
 import io.github.thinke.biwurth.config.TileTypes
@@ -74,6 +75,14 @@ class LayoutCompiler(private val app: PanelApp) {
                     warnings += issue("too_small", "${label(tile)} is ${tile.w}×${tile.h}; a ${tile.type} tile needs at least ${min.first}×${min.second} to read well.", tile)
                 }
                 if (tile.type in ENTITY_TYPES && ids.isEmpty()) warnings += issue("no_entity", "${label(tile)} has no entity.", tile)
+                if (tile.type == "plant") {
+                    val diagram = Diagram.of(tile.prop("diagram"))
+                    when {
+                        tile.prop("diagram") != null && diagram == null -> warnings += issue("bad_diagram", "${label(tile)}: its diagram isn't valid JSON; draw it again in the editor.", tile)
+                        diagram == null || diagram.parts.isEmpty() -> warnings += issue("no_entity", "${label(tile)} has no diagram yet: draw it with Edit diagram.", tile)
+                    }
+                    diagram?.overlaps()?.forEach { warnings += issue("diagram_overlap", "${label(tile)}: $it.", tile) }
+                }
                 for (id in ids.filter(hub::isOwn)) {
                     if (id !in ownIds && !id.endsWith("_ms")) warnings += issue("unknown_field", "${label(tile)}: $id isn't a field of any source.", tile, id)
                 }
@@ -223,12 +232,13 @@ class LayoutCompiler(private val app: PanelApp) {
 
     // The entities a tile shows: its entity (or several, comma separated) and a button's measurement.
     private fun entityIds(tile: Tile) =
+        (if (tile.type == "plant") Diagram.of(tile.prop("diagram"))?.entityIds().orEmpty() else emptyList()) +
         (tile.prop("entity")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()) +
             listOfNotNull(tile.prop("measurement")).filter { tile.type == "toggle" }
 
     private fun overlap(a: Tile, b: Tile) = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
-    private fun label(tile: Tile) = "“${tile.prop("name") ?: tile.prop("entity")?.substringBefore(',') ?: tile.type}”"
+    private fun label(tile: Tile) = "“${tile.prop("name") ?: tile.prop("entity")?.substringBefore(',') ?: if (tile.type == "plant") "Heating" else tile.type}”"
 
     private companion object {
         val ENTITY_TYPES = setOf("entity", "toggle", "graph", "weather", "calendar", "thermostat", "slider", "chips")

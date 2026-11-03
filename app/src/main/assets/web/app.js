@@ -3,40 +3,45 @@
 // Tile types: label, default size in cells, settings, and which entity domains suit them.
 const TYPES = {
   clock: {
-    label: 'Clock', size: [4, 2], fields: ['style', 'date', 'opacity', 'textSize'],
+    label: 'Clock', size: [4, 2], min: [2, 1], fields: ['style', 'date', 'opacity', 'textSize'],
     overrides: { style: { label: 'Look', options: [['', 'Digital'], ['analog', 'Analog']] } },
   },
   entity: {
-    label: 'Entity value', size: [3, 2], fields: ['entity', 'name', 'style', 'min', 'max', 'betterWhen', 'icon', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    label: 'Entity value', size: [3, 2], min: [2, 1], fields: ['entity', 'name', 'style', 'min', 'max', 'betterWhen', 'icon', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
     overrides: { style: { label: 'Look', options: [['', 'Number'], ['trend', 'Trend (change and sparkline)'], ['gauge', 'Gauge'], ['progress', 'Progress bar']] } },
   },
   toggle: {
-    label: 'Toggle / button', size: [2, 2], fields: ['entity', 'name', 'icon', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    label: 'Toggle / button', size: [2, 2], min: [2, 1], fields: ['entity', 'name', 'icon', 'measurement', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
     domains: ['light', 'switch', 'fan', 'input_boolean', 'script', 'scene', 'button', 'input_button', 'cover', 'media_player', 'climate', 'lock'],
   },
   graph: {
-    label: 'History graph', size: [6, 3], fields: ['entity', 'name', 'style', 'hours', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
+    label: 'History graph', size: [6, 3], min: [3, 2], fields: ['entity', 'name', 'style', 'hours', 'unit', 'decimals', 'opacity', 'background', 'border', 'textSize'],
     overrides: { style: { label: 'Look', options: [['', 'Line'], ['bars', 'Bars (per hour)'], ['sparkline', 'Sparkline']] } },
     domains: ['sensor', 'input_number', 'number'], multi: 'line', labels: true,
   },
-  weather: { label: 'Weather', size: [4, 3], fields: ['entity', 'name', 'opacity', 'background', 'border', 'textSize'], domains: ['weather'] },
-  calendar: { label: 'Calendar', size: [4, 4], fields: ['entity', 'name', 'view', 'days', 'opacity', 'background', 'border', 'textSize'], domains: ['calendar'], multi: 'calendar' },
-  camera: { label: 'Camera', size: [6, 4], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
-  chips: { label: 'Chips (status row)', size: [12, 1], fields: ['entity', 'decimals'], multi: 'chip' },
+  weather: { label: 'Weather', size: [4, 3], min: [3, 2], fields: ['entity', 'name', 'opacity', 'background', 'border', 'textSize'], domains: ['weather'] },
+  calendar: { label: 'Calendar', size: [4, 4], min: [3, 2], fields: ['entity', 'name', 'view', 'days', 'opacity', 'background', 'border', 'textSize'], domains: ['calendar'], multi: 'calendar' },
+  camera: { label: 'Camera', size: [6, 4], min: [3, 2], fields: ['camera', 'name', 'fullStream', 'snapshot', 'fit', 'opacity', 'textSize'] },
+  chips: { label: 'Chips (status row)', size: [12, 1], min: [2, 1], fields: ['entity', 'decimals'], multi: 'chip' },
   heading: {
-    label: 'Heading', size: [12, 1], fields: ['name', 'subtitle', 'style'],
+    label: 'Heading', size: [12, 1], min: [2, 1], fields: ['name', 'subtitle', 'style'],
     overrides: { style: { label: 'Look', options: [['', 'Big title'], ['separator', 'Title and a line']] }, name: { label: 'Title', placeholder: 'Living room' } },
   },
   thermostat: {
-    label: 'Thermostat', size: [3, 3], fields: ['entity', 'name', 'style', 'opacity', 'background', 'border', 'textSize'], domains: ['climate'],
+    label: 'Thermostat', size: [3, 3], min: [2, 2], fields: ['entity', 'name', 'style', 'opacity', 'background', 'border', 'textSize'], domains: ['climate'],
     overrides: { style: { label: 'Look', options: [['', 'As the layout'], ['dial', 'Dial'], ['numbers', 'Numbers'], ['ring', 'Ring (glows)'], ['bar', 'Bar'], ['pill', 'Pill (one row)'], ['thermometer', 'Thermometer']] } },
   },
   slider: {
-    label: 'Slider (dimmer, cover, volume)', size: [3, 1], fields: ['entity', 'name', 'icon', 'opacity', 'background', 'border', 'textSize'],
+    label: 'Slider (dimmer, cover, volume)', size: [3, 1], min: [2, 1], fields: ['entity', 'name', 'icon', 'opacity', 'background', 'border', 'textSize'],
     domains: ['light', 'cover', 'fan', 'media_player', 'number', 'input_number'],
   },
+  plant: {
+    label: 'Heating plant (diagram)', size: [8, 6], min: [4, 3],
+    fields: ['name', 'diagram', 'opacity', 'background', 'border', 'textSize'],
+    overrides: { name: { label: 'Title (optional)', placeholder: 'None' } },
+  },
   space: {
-    label: 'Empty space', size: [1, 1], fields: ['picture', 'fit', 'opacity'],
+    label: 'Empty space', size: [1, 1], min: [1, 1], fields: ['picture', 'fit', 'opacity'],
     // The same props as others, with this tile's own meaning.
     overrides: {
       fit: { label: 'Picture', options: [['', 'Show all of it'], ['cover', 'Fill the tile'], ['stretch', 'Stretch to the tile']] },
@@ -385,6 +390,12 @@ function boardGap() {
   return (layout.theme.gap ?? 8) * (board.clientWidth || across) / across;
 }
 
+// Smallest size a tile of [type] reads well at, in this layout's cells.
+function minSize(type) {
+  const [w, h] = TYPES[type]?.min || [1, 1];
+  return [Math.max(1, Math.ceil(w * layout.columns / 12)), Math.max(1, Math.ceil(h * layout.rows / 8))];
+}
+
 // Moves and resizes snap to whole cells and never overlap another tile.
 function startDrag(event, tile, el, mode) {
   event.preventDefault();
@@ -408,8 +419,10 @@ function startDrag(event, tile, el, mode) {
       c.x = clamp(start.tile.x + dx, 0, layout.columns - tile.w);
       c.y = clamp(start.tile.y + dy, 0, layout.rows - tile.h);
     } else {
-      c.w = clamp(start.tile.w + dx, 1, layout.columns - tile.x);
-      c.h = clamp(start.tile.h + dy, 1, layout.rows - tile.y);
+      // Not below the type's minimum (given for 12 × 8, scaled to this grid), where there's room for it.
+      const [minW, minH] = minSize(tile.type);
+      c.w = clamp(start.tile.w + dx, Math.min(minW, layout.columns - tile.x), layout.columns - tile.x);
+      c.h = clamp(start.tile.h + dy, Math.min(minH, layout.rows - tile.y), layout.rows - tile.y);
     }
     if ((c.x !== tile.x || c.y !== tile.y || c.w !== tile.w || c.h !== tile.h) && !collides(c)) {
       Object.assign(tile, { x: c.x, y: c.y, w: c.w, h: c.h });
@@ -444,6 +457,10 @@ function renderTileForm() {
   const typeSelect = select(Object.entries(TYPES).map(([k, t]) => [k, t.label]), tile.type);
   typeSelect.addEventListener('change', () => {
     tile.type = typeSelect.value;
+    // Grow to the new type's minimum where that doesn't run into another tile or off the grid.
+    const [minW, minH] = minSize(tile.type);
+    const grown = { ...tile, w: Math.max(tile.w, minW), h: Math.max(tile.h, minH) };
+    if (grown.x + grown.w <= layout.columns && grown.y + grown.h <= layout.rows && !collides(grown)) Object.assign(tile, { w: grown.w, h: grown.h });
     const keep = TYPES[tile.type].fields;
     tile.props = Object.fromEntries(Object.entries(tile.props).filter(([k]) => keep.includes(k)));
     setDirty(true);
@@ -460,6 +477,12 @@ function renderTileForm() {
     }
     if (name === 'picture') {
       form.append(pictureEditor(tile));
+      continue;
+    }
+    if (name === 'diagram') {
+      const parts = (() => { try { return JSON.parse(tile.props.diagram || '{}').parts?.length || 0; } catch { return 0; } })();
+      const edit = button(parts ? `Edit diagram (${parts} parts)` : 'Draw the diagram', () => openDiagramEditor(tile), 'primary');
+      form.append(labelled('Diagram', edit));
       continue;
     }
     let input;

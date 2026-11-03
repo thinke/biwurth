@@ -116,6 +116,7 @@ private fun TileContent(tile: Tile, ha: DataHub) {
         "camera" -> CameraTile(tile)
         "space" -> SpaceTile(tile)
         "thermostat" -> Card { ThermostatTile(tile, ha) }
+        "plant" -> Card { PlantTile(tile, ha) }
         "slider" -> Card(button = true) { SliderTile(tile, ha) }
         "chips" -> BoxWithConstraints(Modifier.fillMaxSize()) { ChipsTile(tile, ha) }
         "heading" -> BoxWithConstraints(Modifier.fillMaxSize()) { HeadingTile(tile) }
@@ -138,7 +139,7 @@ internal fun DataHub.entity(id: String?): HomeAssistant.Entity? = key(id) {
 @Composable
 // Keyed by the ids: collectAsState keeps its last value when its flow changes, so without the key a
 // tile given more entities would read the old, shorter list for a frame (and index past its end).
-private fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> = key(ids) {
+internal fun DataHub.entities(ids: List<String>): List<HomeAssistant.Entity?> = key(ids) {
     val flow = remember(this) { entities.map { all -> ids.map { all[it] } }.distinctUntilChanged() }
     flow.collectAsState(initial = ids.map { entities.value[it] }).value
 }

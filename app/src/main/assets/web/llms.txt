@@ -27,6 +27,28 @@ returns. SVG is drawn as vectors, sharp at any size, so icons and logos work wel
 default shows all of the picture, "cover" fills the tile, "stretch" fills it exactly.
 GET /api/picture/<name> returns a picture. Backups include the pictures the layout uses.
 
+A `plant` tile (Heating plant) draws a heating system free-form, as a building automation screen.
+`props.diagram` is a JSON string: `{w, h, parts, pipes}` on a grid of w × h units (default 48 × 30;
+the tile scales it to fit, keeping its shape). A part is `{id, kind, x, y, w, h, props}` (x, y its
+top left); a pipe is `{id, kind, points: [[x, y], …], flow}`, kind hot | cold | warm | refrigerant | air | flue,
+drawn under the parts, with water moving first point to last while its `flow` entity runs (a pump,
+a burner, an AC). Part kinds and their props (entity ids unless said):
+- source: a heat source. `type` oil | gas | pellet | wood | electric | heatpump | district | solar,
+  `name`, `state` (on/off or modulation %), `temp`. Several sources can feed the same pipes.
+- airheater: a wood-fired air heater (air-to-air heat exchanger): `state` (fire on/off; without
+  it, a `core` over 40° means burning), `fan`, `core` (exchanger temperature), `in`, `out` (air;
+  ΔT beside it), `flue` (flue gas), `name`. Pipe kinds air (a duct) and flue suit it.
+- radiator, floor (floor heating): `name`, `temp`, `active` (warm while it runs; default warm).
+- tank: hot-water tank, `name`, `temp`, `active` (charging).
+- pump: `state`, `dir` right | left | up | down. valve (mixing valve): `position` (%), `dir` vertical.
+- outdoor (AC outdoor unit): `ac` (climate entity, or a state heating/cooling/idle/off), `in`, `out`
+  (air temperatures; their ΔT shows under it), `name`.
+- indoor (AC indoor unit): `ac`, `in`, `out` (air; ΔT beside it), `room`, `name`.
+- sensor: `entity`, `label`, `unit`: a reading anywhere. `from` (an entity) shows entity − from as a ΔT;
+  `point` "x,y" draws a leader line to a probe dot there, where it's measured (on a pipe or duct). text: `text`.
+Names go above a part and temperatures below it, so leave a unit or two of room around parts;
+the check reports diagram_overlap for parts or text on each other and pipes across text.
+
 - GET /api/schema: grid size, screen size in pixels, themes, backgrounds, and every tile type
   with its props, allowed values, default and minimum size, and which entity domains it takes.
   Read this first.
@@ -36,7 +58,8 @@ GET /api/picture/<name> returns a picture. Backups include the pictures the layo
 - POST /api/layout/check (body: a layout): checks without saving. Returns the layout as it would
   be saved and `report.issues`: `{code, message, page, tile, entity}` with codes overlap,
   too_small, no_entity, entity_missing, not_numeric, wrong_domain, unknown_field, not_checked,
-  no_stream, background_missing.
+  no_stream, background_missing, bad_diagram,
+  diagram_overlap.
 - POST /api/screenshot (body: a draft layout, or `{"layout": …, "page": n}`): a PNG of that page
   as the tablet draws it, made off-screen; nothing is saved or shown. GET /api/screenshot?page=n
   for the saved layout. Query: scale=0.1-1 (0.5 is plenty to judge a layout), format=jpeg,

@@ -158,6 +158,20 @@ object TileTypes {
             ),
         ),
         Type(
+            "plant", "Heating plant",
+            "A heating system drawn free-form, as a building automation screen: heat sources of any kind and number (oil, gas, " +
+                "pellet, wood, electric, heat pump, district heat, solar) feeding the same loops, pumps, mixing valves, radiators, " +
+                "floor heating, hot-water tanks, AC outdoor and indoor units with their air temperatures and ΔT, sensor readings " +
+                "and labels, joined by pipes where water flows while a pump (or anything else) runs. Drawn in the website's " +
+                "diagram editor; the format is in llms.txt. Give it room: 6×4 or the whole page.",
+            size = 8 to 6, minSize = 4 to 3,
+            props = listOf(
+                Prop("name", "text", "Title over the diagram. Default: none."),
+                Prop("diagram", "diagram", "The plant as JSON: {w, h, parts: [{id, kind, x, y, w, h, props}], pipes: [{id, kind, points: [[x, y], …], flow}]} (see llms.txt)."),
+                opacity, background, border, textSize,
+            ),
+        ),
+        Type(
             "space", "Empty space",
             "Keeps its cells empty: a gap in the layout, or room for a picture (JPEG, PNG, WebP or SVG, drawn sharp at any size). Works down to 1×1.",
             size = 1 to 1, minSize = 1 to 1,
@@ -182,6 +196,7 @@ object TileTypes {
     )
 
     val BY_KEY: Map<String, Type> = ALL.associateBy { it.key }
+
 
     /**
      * An entity's Home Assistant domain: "sensor" for sensor.x and for another Home Assistant's
